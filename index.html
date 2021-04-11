@@ -1,7 +1,10 @@
+
+
 <!DOCTYPE html>
 <html>
 
 <head>
+   <!-- HTML and several functions based or copied from https://github.com/Draradech/jigsaw -->
    <meta charset="UTF-8">
    <title>Fractal jigsaw puzzle generator</title>
    <script type="text/javascript">
@@ -350,7 +353,7 @@
             var width = this.ncols * 2 * crad + 2 * border;
             var height = this.nrows * 2 * crad + 2 * border;
 
-            var data = "<?xml version=\"1.0\" encoding=\"utf-8\" ?><svg baseProfile=\"full\" height=\"" + height + "mm\" version=\"1.1\" viewBox=\"0 0 " + height + " " + width + "\" width=\"" + width + "mm\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:ev=\"http://www.w3.org/2001/xml-events\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"><defs />"
+            var data = "<?xml version=\"1.0\" encoding=\"utf-8\" ?><svg baseProfile=\"full\" height=\"" + height + "mm\" version=\"1.1\" viewBox=\"0 0 " + width + " " + height + "\" width=\"" + width + "mm\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:ev=\"http://www.w3.org/2001/xml-events\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"><defs />"
 
             this.pieces.forEach((p) => {
                var arcs = [];
