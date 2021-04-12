@@ -268,22 +268,6 @@
             this.grid.visitvertex(vi);
 
 
-            // var currentv = document.createElementNS($("puzzlecontainer").namespaceURI, "circle")
-            // currentv.setAttribute("stroke", "green");
-            // currentv.setAttribute("fill", "white");
-            // currentv.setAttribute("stroke-width", rad / 20.0);
-            // currentv.setAttribute("cx", vi.x * 2 * rad + rad + frame);
-            // currentv.setAttribute("cy", vi.y * 2 * rad + rad + frame);
-            // currentv.setAttribute("r", rad);
-            // $("puzzlecontainer").appendChild(currentv);
-
-            // var newpath = document.createElementNS($("puzzlecontainer").namespaceURI, "path")
-            // // newpath.setAttribute("d",p);
-            // newpath.setAttribute("stroke", "black");
-            // newpath.setAttribute("stroke-width", rad / 20.0);
-            // newpath.setAttribute("fill", "#" + Math.floor(uniform(0, 16777216)).toString(16));
-            // $("puzzlecontainer").appendChild(newpath);
-
             while (myvertices.length < targetpiecelen) {
                var possibleconnections = this.possibleconnections(myvertices, false);
                if (possibleconnections.length == 0) {
@@ -294,18 +278,9 @@
                myvertices.push(chosenconnection.p2);
                this.grid.occupycell(chosenconnection.cell);
                this.grid.visitvertex(chosenconnection.p2);
-               // var arcs = [];
-               // var data = ""
-               // CircleFractalJigsaw.addarcs(myconnections[0], myconnections, arcs, rad, frame, true);
-               // data += "M" + arcs[0].sp.x + "," + arcs[0].sp.y + " ";
-               // arcs.forEach((a) => {
-               //    data += "A " + rad + " " + rad + " 90 0," + a.sign + " " + a.ep.x + " " + a.ep.y + " ";
-               // });
-               // data += "Z"
-               // newpath.setAttribute("d", data);
+
 
             }
-            //console.log("Piece length " + myconnections.length + " OC " + this.grid.emptycells.length + " NV " + this.grid.notvisited.length);
 
             if (myvertices.length >= this.minpiecelen) {
                this.pieces.push(myconnections);
@@ -313,13 +288,6 @@
                myconnections.forEach((c) => {
                   this.grid.liberatecell(c.cell)
                })
-               // if (myconnections.length == 0) {
-               //    // $("puzzlecontainer").removeChild($("puzzlecontainer").lastChild);
-               // } else {
-               //    // newpath.setAttribute("stroke", "red");
-               //    // newpath.setAttribute("stroke-width", rad / 5.0);
-               // }
-
             }
          }
 
@@ -328,20 +296,26 @@
             this.regenerategrid()
             this.pieces.sort((a, b) => a.length - b.length);
             this.pieces.forEach((p) => {
+               var vertices = [p[0].p1];
                p.forEach((con) => {
-                  var possibleconnections = this.possibleconnections([con.p1, con.p2], allowpartials);
-                  possibleconnections.forEach((pc) => {
-                     p.push(pc);
-                     filled = true;
-                     this.grid.occupycell(pc.cell);
-                     this.grid.visitvertex(pc.p2);
-                  });
+                  vertices.push(con.p2);
                });
-               // p.filter(function (ele) {
-               //    return !Boolean(p.map(function(e){
-               //       return e.cell;
-               //    }).find(c => c.eq(ele.cell)));
-               // });
+               vertices.forEach((v) => {
+                  var possibleconnections = this.possibleconnections([v], allowpartials);
+                  if (possibleconnections.length) {
+                     possibleconnections = possibleconnections.filter(function (ele) {
+                        return !Boolean(vertices.find(vf => vf.eq(ele.p2)));
+                     });
+                     possibleconnections.forEach((pc) => {
+                        p.push(pc);
+                        vertices.push(pc.p2);
+                        filled = true;
+                        this.grid.occupycell(pc.cell);
+                        this.grid.visitvertex(pc.p2);
+                     });
+                  }
+               });
+
             });
             return filled;
          }
@@ -552,7 +526,6 @@
             newpath.setAttribute("fill", "#" + Math.floor(uniform(0, 16777216)).toString(16));
             $("puzzlecontainer").appendChild(newpath);
          });
-         //$("puzzlepath").setAttribute("d", jig.singlepath(frame, rad));
 
       }
    </script>
