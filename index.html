@@ -9,6 +9,22 @@
    <title>Fractal jigsaw puzzle generator</title>
    <script type="text/javascript">
 
+      var seed = 1;
+      var ncols, nrows, rad, frame, minp, maxp;
+      var jig;
+      function random() { var x = Math.sin(seed) * 10000; seed += 1; return x - Math.floor(x); }
+      function uniform(min, max) { var r = random(); return min + r * (max - min); }
+      function rbool() { return random() > 0.5; }
+
+      function $(id) { return document.getElementById(id); }
+
+      function updateseed() { $("_seed").value = $("seed").value; /*update();*/ }
+      function updatencols() { $("_ncols").value = $("ncols").value; update(); }
+      function updatenrows() { $("_nrows").value = $("nrows").value; update(); }
+      function update_seed() { var val = parseFloat($("_seed").value); if (!isNaN(val)) { $("seed").value = val; } updateseed(); }
+      function update_ncols() { var val = parseFloat($("_ncols").value); if (!isNaN(val)) { $("ncols").value = val; } updatencols(); }
+      function update_nrows() { var val = parseFloat($("_nrows").value); if (!isNaN(val)) { $("nrows").value = val; } updatenrows(); }
+
       class Point {
          constructor(x, y) {
             this._x = x;
@@ -49,11 +65,11 @@
             this._p1 = p1;
             this._p2 = p2;
             this._p2_taken = p2_taken;
-            this.slope = (p2.y - p1.y) / (p2.x - p1.x);
+            this._slope = (p2.y - p1.y) / (p2.x - p1.x);
             var ccx = Math.min(p2.x, p1.x);
             var ccy = Math.min(p2.y, p1.y);
             this._cell = new Cell(ccx, ccy);
-            if (this.slope > 0) {
+            if (this._slope > 0) {
                if (p2.y > p1.y) {
                   this._quad = 3;
                } else {
@@ -69,6 +85,9 @@
          }
          eq(other) {
             return (this === other) || (this.cell.x == other.cell.x && this.cell.y == other.cell.y && this.slope == other.slope && this.p2_taken == other.p2_taken)
+         }
+         get slope(){
+            return this._slope;
          }
          get quad() {
             return this._quad;
@@ -145,6 +164,9 @@
                return !ele.eq(c);
             });
          }
+         liberatecell(c){
+            this._emptycells.push(c);
+         }
 
          occupantat(p) {
             return this.vertexgrid[p.x * this.nrow + p.y];
@@ -216,16 +238,8 @@
             this.maxpiecelen = maxpiecelen;
             this.minpiecelen = minpiecelen;
          }
-         createpiece() {
-            var myvertices = new Array();
-            var myconnections = new Array();
-            var targetpiecelen = Math.round(uniform(this.minpiecelen, this.maxpiecelen));
-            var vi = this.grid.notvisited[Math.floor(uniform(0, this.grid.notvisited.length))]
-            myvertices.push(vi);
-            this.grid.visitvertex(vi);
-
-            while (myvertices.length < targetpiecelen) {
-               var possibleconnections = [];
+         possibleconnections(myvertices){
+            var pcs = [];
                var neighbors = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
                neighbors.forEach((n) => {
                   myvertices.forEach((v) => {
@@ -233,12 +247,45 @@
                      if (this.grid.notvisited.find(nv => nv.eq(cpt)) && !myvertices.find(nv => nv.eq(cpt))) {
                         let dc = new DiagonalConnection(v, cpt, true);
                         if (this.grid.emptycells.find(c => c.eq(dc.cell))) {
-                           possibleconnections.push(dc);
+                           pcs.push(dc);
                         }
                      }
                   });
                });
+               return pcs;
+         }
+         createpiece() {
+            var myvertices = new Array();
+            var myconnections = new Array();
+            var targetpiecelen = Math.round(uniform(this.minpiecelen, this.maxpiecelen));
+            var vi = this.grid.notvisited[Math.floor(uniform(0, this.grid.notvisited.length))]
+            myvertices.push(vi);
+            this.grid.visitvertex(vi);
+            if(targetpiecelen < this.minpiecelen){
+               console.log("FAIL");
+            }
+
+            var currentv = document.createElementNS($("puzzlecontainer").namespaceURI,"circle")
+            currentv.setAttribute("stroke","green");
+            currentv.setAttribute("fill","white");
+            currentv.setAttribute("stroke-width",rad/20.0);
+            currentv.setAttribute("cx",vi.x*2*rad+rad+frame);
+            currentv.setAttribute("cy",vi.y*2*rad+rad+frame);
+            currentv.setAttribute("r",rad);
+            $("puzzlecontainer").appendChild(currentv);
+
+            var newpath = document.createElementNS($("puzzlecontainer").namespaceURI,"path")
+            // newpath.setAttribute("d",p);
+            newpath.setAttribute("stroke","black");
+            newpath.setAttribute("stroke-width",rad/20.0);
+            newpath.setAttribute("fill","#"+Math.floor(uniform(0,16777216)).toString(16));
+            $("puzzlecontainer").appendChild(newpath);
+
+            while (myvertices.length < targetpiecelen) {
+               var possibleconnections = this.possibleconnections(myvertices);
+               console.log(possibleconnections.length);
                if (possibleconnections.length == 0) {
+                  console.log("BReak");
                   break;
                }
                var chosenconnection = possibleconnections[Math.floor(uniform(0, possibleconnections.length))];
@@ -246,40 +293,42 @@
                myvertices.push(chosenconnection.p2);
                this.grid.occupycell(chosenconnection.cell);
                this.grid.visitvertex(chosenconnection.p2);
+               var arcs = [];
+               var data =""
+               CircleFractalJigsaw.addarcs(myconnections[0], myconnections, arcs, rad, frame, true);
+               data += "M" + arcs[0].sp.x + "," + arcs[0].sp.y + " ";
+               arcs.forEach((a) => {
+                  data += "A " + rad + " " + rad + " 90 0," + a.sign + " " + a.ep.x + " " + a.ep.y + " ";
+               });
+               data += "Z"
+               newpath.setAttribute("d",data);
 
             }
             //console.log("Piece length " + myconnections.length + " OC " + this.grid.emptycells.length + " NV " + this.grid.notvisited.length);
 
-            if (myconnections.length >= this.minpiecelen) {
-               //console.log("Piece OK");
-
+            if (myvertices.length >= this.minpiecelen) {
+               console.log("Piece OK");
                this.pieces.push(myconnections);
+            }else{
+               myconnections.forEach((c)=>{
+                  this.grid.liberatecell(c.cell)
+               })
+               if(myconnections.length ==0){
+                  $("puzzlecontainer").removeChild($("puzzlecontainer").lastChild);
+               }else{
+                  newpath.setAttribute("stroke","red");
+                  newpath.setAttribute("stroke-width",rad/5.0);
+               }
+               console.log("Piece NOT OK "+myconnections.length);
             }
          }
+
          // fillholes(){
-         //    var filledcells=[];
-         //    this.grid.emptycells.forEach((ec)=>{
-         //       if(!filledcells.find(c => c.eq(ec))){
-         //          var vertices = ec.vertices();
-         //          var occupants = vertices.map((v)=>{
-         //             return this.grid.occupantat(v);
-         //          });
-         //          var holes =[];
-         //          var repetitions =[];
-         //          occupants.forEach(function (element, index, array){
-         //             if (element == 0){
-         //                holes.push(vertices[index]);
-         //             }
-         //             repetitions.push(occupants.filter(o=>o==element).length);
-         //          });
-         //          if(holes.length){
-         //             var hole = holes[0];
-         //             var chouces
-         //          }
-
-         //       }
+         //    this.regenerategrid()
+         //    this.pieces.sort((a,b)=> a.length-b.length);
+         //    this.pieces.forEach((p)=>{
+         //       p.forEach()
          //    });
-
          // }
          static addarcs(con, connections, arcs, rad, border, first) {
             var newarc;
@@ -380,6 +429,23 @@
             });
             return data;
          }
+
+         multipaths(border,crad){
+            var paths =[];
+            var data = "";
+            this.pieces.forEach((p) => {
+               var data = ""
+               var arcs = [];
+               CircleFractalJigsaw.addarcs(p[0], p, arcs, crad, border, true);
+               data += "M" + arcs[0].sp.x + "," + arcs[0].sp.y + " ";
+               arcs.forEach((a) => {
+                  data += "A " + crad + " " + crad + " 90 0," + a.sign + " " + a.ep.x + " " + a.ep.y + " ";
+               });
+               data += "Z"
+               paths.push(data);
+            });
+            return paths;
+         }
          generate() {
             while (this.grid.notvisited.length) {
                this.createpiece();
@@ -428,21 +494,6 @@
          }
       }
 
-      var seed = 1;
-      var ncols, nrows, rad, frame, minp, maxp;
-      var jig;
-      function random() { var x = Math.sin(seed) * 10000; seed += 1; return x - Math.floor(x); }
-      function uniform(min, max) { var r = random(); return min + r * (max - min); }
-      function rbool() { return random() > 0.5; }
-
-      function $(id) { return document.getElementById(id); }
-
-      function updateseed() { $("_seed").value = $("seed").value; /*update();*/ }
-      function updatencols() { $("_ncols").value = $("ncols").value; update(); }
-      function updatenrows() { $("_nrows").value = $("nrows").value; update(); }
-      function update_seed() { var val = parseFloat($("_seed").value); if (!isNaN(val)) { $("seed").value = val; } updateseed(); }
-      function update_ncols() { var val = parseFloat($("_ncols").value); if (!isNaN(val)) { $("ncols").value = val; } updatencols(); }
-      function update_nrows() { var val = parseFloat($("_nrows").value); if (!isNaN(val)) { $("nrows").value = val; } updatenrows(); }
 
 
       function parse_input() {
@@ -467,20 +518,32 @@
          parse_input();
          console.log(ncols,nrows);
          jig = new CircleFractalJigsaw(ncols, nrows, minp, maxp);
-         jig.generate();
-         jig.regenerategrid();
-
          $("puzzlecontainer").setAttribute("width", ncols * 2 * rad +rad+ 2 * frame);
 
          $("puzzlecontainer").setAttribute("height", nrows * 2 * rad +rad+ 2 * frame);
+         jig.generate();
+         jig.regenerategrid();
 
-         $("puzzlepath").setAttribute("d", jig.singlepath(frame, rad));
+
+         while($("puzzlecontainer").firstChild){
+            $("puzzlecontainer").removeChild($("puzzlecontainer").firstChild);
+         }
+         jig.multipaths(frame,rad).forEach((p)=>{
+            var newpath = document.createElementNS($("puzzlecontainer").namespaceURI,"path")
+            newpath.setAttribute("d",p);
+            newpath.setAttribute("stroke","black");
+            newpath.setAttribute("stroke-width",rad/20.0);
+            newpath.setAttribute("fill","#"+Math.floor(uniform(0,16777216)).toString(16));
+            $("puzzlecontainer").appendChild(newpath);
+         });
+
+         //$("puzzlepath").setAttribute("d", jig.singlepath(frame, rad));
    
       }
    </script>
 </head>
-
-<body onload="$('seed').value = Math.random() * 10000; updateseed();">
+<body onload="$('seed').value = 5300; updateseed();"></body>
+<!-- <body onload="$('seed').value = Math.random() * 10000; updateseed();"> -->
    <table>
       <tr>
          <td>Seed:</td>
@@ -499,7 +562,7 @@
       </tr>
       <tr>
          <td>Circle Radius:</td>
-         <td><input id="cradius" type="text" value="2.0" size="4" onchange="update()" /> mm</td>
+         <td><input id="cradius" type="text" value="6.0" size="4" onchange="update()" /> mm</td>
          <td></td>
       </tr>
       <tr>
@@ -523,7 +586,7 @@
       </tr>
    </table>
    <svg id="puzzlecontainer">
-      <path id="puzzlepath" fill="none" stroke="Black"></path>
+      <!-- <path id="puzzlepath" fill="none" stroke="Black"></path> -->
    </svg>
 </body>
 
