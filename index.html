@@ -16,7 +16,7 @@
 
       function $(id) { return document.getElementById(id); }
 
-      function updateseed() { $("_seed").value = $("seed").value; /*update();*/ }
+      function updateseed() { $("_seed").value = $("seed").value; update();}
       function updatencols() { $("_ncols").value = $("ncols").value; update(); }
       function updatenrows() { $("_nrows").value = $("nrows").value; update(); }
       function update_seed() { var val = parseInt($("_seed").value); if (!isNaN(val)) { $("seed").value = val; } updateseed(); }
@@ -49,9 +49,6 @@
          }
          get y() {
             return this._y;
-         }
-         get vertices() {
-            return [new Point(this._x, this._y), new Point(this._x + 1, this._y), new Point(this._x, this._y + 1), new Point(this._x + 1, this._y + 1)];
          }
          eq(c) {
             return (this.x == c.x && this.y == c.y);
@@ -128,59 +125,63 @@
          constructor(nrow, ncol) {
             this.nrow = nrow;
             this.ncol = ncol;
-            this._notvisited = null;
-            this._vertexgrid = null;
-            this._emptycells = null;
-            this.reset();
+            this.visited = new Array(this.ncol * this.nrow).fill(false);
+            this.cellmap = new Array((this.ncol - 1) * (this.nrow - 1)).fill(false);
+            this._nunvisited = this.ncol * this.nrow;
          }
-         reset() {
-            this._notvisited = new Array(this.ncol * this.nrow);
-            for (var i = 0; i < this.ncol; i++) {
-               for (var j = 0; j < this.nrow; j++) {
-                  this._notvisited[i * this.nrow + j] = new Point(j, i);
-               }
-            }
-            this._vertexgrid = new Array(this.ncol * this.nrow).fill(0);
-            this._emptycells = new Array((this.ncol - 1) * (this.nrow - 1));
-            for (var i = 0; i < this.ncol - 1; i++) {
-               for (var j = 0; j < this.nrow - 1; j++) {
-                  this._emptycells[i * (this.nrow - 1) + j] = new Cell(j, i);
-               }
-            }
-         }
-         markvertex(p, np) {
-            this._vertexgrid[p.x * this.nrow + p.y] = np;
 
+         randomemptyvertex() {
+            var emptyvertices = this.visited.reduce(function (acc, curr, index) {
+               if (!curr) {
+                  acc.push(index);
+               }
+               return acc;
+            }, []);
+            
+            var index = emptyvertices[Math.floor(uniform(0, emptyvertices.length))];
+            var y = Math.floor(index/this.nrow);
+            var x = index%this.nrow;
+            return new Point(x,y);
          }
+
+         reset() {
+            this.visited.fill(false);
+            this.cellmap.fill(false);
+            this._nunvisited = this.ncol * this.nrow;
+         }
+         isvertexvalid(v){
+            return (v.x >=0 && v.x < this.nrow && v.y >=0 && v.y < this.ncol);
+         }
+
          isvertexvisited(v) {
-            return !Boolean(this._notvisited.find(nv => nv.eq(v)));
+            return this.visited[v.y * this.nrow + v.x];
          }
-         visitvertex(p) {
-            this._notvisited = this._notvisited.filter(function (ele) {
-               return !ele.eq(p);
-            });
+         iscellempty(c) {
+            return !this.cellmap[c.y * this.nrow + c.x];
+         }
+         visitvertex(v) {
+            if (!this.visited[v.y * this.nrow + v.x]) {
+               this.visited[v.y * this.nrow + v.x] = true;
+               this._nunvisited--;
+            }
          }
          occupycell(c) {
-            this._emptycells = this._emptycells.filter(function (ele) {
-               return !ele.eq(c);
-            });
+            if (!this.cellmap[c.y * this.nrow + c.x]) {
+               this.cellmap[c.y * this.nrow + c.x] = true;
+            }
          }
          liberatecell(c) {
-            this._emptycells.push(c);
+            this.cellmap[c.y * this.nrow + c.x] = false;
          }
 
-         occupantat(p) {
-            return this.vertexgrid[p.x * this.nrow + p.y];
+         get nunvisited() {
+            return this._nunvisited;
          }
+
          get notvisited() {
             return this._notvisited;
          }
-         get emptycells() {
-            return this._emptycells;
-         }
-         get vertexgrid() {
-            return this._vertexgrid;
-         }
+
       }
 
       class Arc {
@@ -217,10 +218,10 @@
                this._ep = pa;
             }
          }
-         eq(a){
+         eq(a) {
             return (this.quad == a.quad && this.cp.eq(a.cp));
          }
-         get cp(){
+         get cp() {
             return this._cp;
          }
          get sign() {
@@ -253,9 +254,9 @@
             neighbors.forEach((n) => {
                myvertices.forEach((v) => {
                   let cpt = new Point(v.x + n[0], v.y + n[1]);
-                  if (!myvertices.find(nv => nv.eq(cpt))) {
+                  if (this.grid.isvertexvalid(cpt) && !myvertices.find(nv => nv.eq(cpt))) {
                      let dc = new DiagonalConnection(v, cpt, !this.grid.isvertexvisited(cpt));
-                     if (this.grid.emptycells.find(c => c.eq(dc.cell))) {
+                     if (this.grid.iscellempty(dc.cell)) {
                         if (allowpartials || !this.grid.isvertexvisited(cpt)) {
                            pcs.push(dc);
                         }
@@ -269,12 +270,12 @@
             var myvertices = new Array();
             var myconnections = new Array();
             var targetpiecelen = Math.round(uniform(this.minpiecelen, this.maxpiecelen));
-            var vi = this.grid.notvisited[Math.floor(uniform(0, this.grid.notvisited.length))]
+            var vi = this.grid.randomemptyvertex();
             myvertices.push(vi);
             this.grid.visitvertex(vi);
 
 
-            while (myvertices.length < targetpiecelen) {
+            while (this.grid.nunvisited > 0  && myvertices.length < targetpiecelen) {
                var possibleconnections = this.possibleconnections(myvertices, false);
                if (possibleconnections.length == 0) {
                   break;
@@ -292,15 +293,14 @@
                this.pieces.push(myconnections);
             } else {
                myconnections.forEach((c) => {
-                  this.grid.liberatecell(c.cell)
+                  this.grid.liberatecell(c.cell);
                })
             }
          }
 
          fillholes(allowpartials) {
             var filled = false;
-            this.regenerategrid()
-            this.pieces.sort((a, b) => a.length - b.length);
+            this.pieces = this.pieces.sort((a, b) => a.length - b.length);
             this.pieces.forEach((p) => {
                var vertices = [p[0].p1];
                p.forEach((con) => {
@@ -410,7 +410,7 @@
                });
                data += "Z\"></path>";
             });
-            data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\""+createframe()+"\"></path>";
+            data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"" + createframe() + "\"></path>";
             data += "</svg>";
             return data;
          }
@@ -419,34 +419,34 @@
             var width = this.ncols * 2 * crad + 2 * border;
             var height = this.nrows * 2 * crad + 2 * border;
             var data = "<?xml version=\"1.0\" encoding=\"utf-8\" ?><svg baseProfile=\"full\" height=\"" + height + "mm\" version=\"1.1\" viewBox=\"0 0 " + width + " " + height + "\" width=\"" + width + "mm\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:ev=\"http://www.w3.org/2001/xml-events\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"><defs />"
-            var allarcs =[];
+            var allarcs = [];
             var path = "";
             this.pieces.forEach((p) => {
                var inpath = false;
                var arcs = [];
                CircleFractalJigsaw.addarcs(p[0], p, arcs, crad, border, true);
                arcs.forEach((a) => {
-                  if(allarcs.find(na =>na.eq(a))){
-                     if(inpath){
+                  if (allarcs.find(na => na.eq(a))) {
+                     if (inpath) {
                         path += "\"></path>"
                         data += path;
                         inpath = false;
                      }
-                  }else{
+                  } else {
                      allarcs.push(a);
-                     if(!inpath){
+                     if (!inpath) {
                         path = "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"M" + a.sp.x + "," + a.sp.y + " ";
                         inpath = true;
                      }
-                    path += "A " + crad + " " + crad + " 90 0," + a.sign + " " + a.ep.x + " " + a.ep.y + " ";
+                     path += "A " + crad + " " + crad + " 90 0," + a.sign + " " + a.ep.x + " " + a.ep.y + " ";
                   }
                });
-               if(inpath){
+               if (inpath) {
                   path += "\"></path>"
                   data += path;
                }
             });
-            data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\""+createframe()+"\"></path>";
+            data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"" + createframe() + "\"></path>";
             data += "</svg>";
             return data;
          }
@@ -482,23 +482,23 @@
             return paths;
          }
          generate() {
-            while (this.grid.notvisited.length) {
+            while (this.grid.nunvisited) {
                this.createpiece();
             }
+            this.regenerategrid();
          }
-
+         npieces(){
+            return this.pieces.length;
+         }
          regenerategrid() {
             this.grid.reset()
             var np = 1;
             this.pieces.forEach((p) => {
                p.forEach((c) => {
-                  this.grid.markvertex(c.p1, np);
-
                   if (!this.grid.isvertexvisited(c.p1)) {
                      this.grid.visitvertex(c.p1);
                   }
                   if (c.p2_taken) {
-                     this.grid.markvertex(c.p2, np);
                      if (!this.grid.isvertexvisited(c.p2)) {
                         this.grid.visitvertex(c.p2);
                      }
@@ -544,12 +544,13 @@
 
       function update() {
          parse_input();
-
+         $("width").innerHTML =  ncols * 2 * rad + 2 * frame;
+         $("height").innerHTML = nrows * 2 * rad + 2 * frame;
       }
       function savesvg(overlap) {
-         if(overlap){
+         if (overlap) {
             save("jigsaw.svg", jig.exportsvg(frame, rad));
-         }else{
+         } else {
             save("jigsaw.svg", jig.exportsvg_nooverlap(frame, rad));
          }
       }
@@ -591,8 +592,8 @@
          while (jig.fillholes(false));
          jig.fillholes(true);
 
-         $("puzzlecontainer").setAttribute("width", ncols * 2 * rad + rad + 2 * frame);
-         $("puzzlecontainer").setAttribute("height", nrows * 2 * rad + rad + 2 * frame);
+         $("puzzlecontainer").setAttribute("width", ncols * 2 * rad + 2 * frame);
+         $("puzzlecontainer").setAttribute("height", nrows * 2 * rad + 2 * frame);
 
          while ($("puzzlecontainer").firstChild) {
             $("puzzlecontainer").removeChild($("puzzlecontainer").firstChild);
@@ -611,7 +612,7 @@
          framedraw.setAttribute("fill", "none");
          framedraw.setAttribute("stroke-width", 0.5);
          $("puzzlecontainer").appendChild(framedraw);
-
+         $("piececount").innerHTML=jig.npieces();
       }
    </script>
 </head>
@@ -627,12 +628,12 @@
       <tr>
          <td>Coulmns:</td>
          <td><input id="_ncols" type="text" value="20" onchange="update_ncols()" /></td>
-         <td><input id="ncols" type="range" value="20" min="5" max="80" step="1" onchange="updatencols()" /></td>
+         <td><input id="ncols" type="range" value="20" min="5" max="100" step="1" onchange="updatencols()" /></td>
       </tr>
       <tr>
          <td>Rows:</td>
          <td><input id="_nrows" type="text" value="20" onchange="update_nrows()" /></td>
-         <td><input id="nrows" type="range" value="20" min="5" max="80" step="1" onchange="updatenrows()" /></td>
+         <td><input id="nrows" type="range" value="20" min="5" max="100" step="1" onchange="updatenrows()" /></td>
       </tr>
       <tr>
          <td>Circle Radius:</td>
@@ -660,6 +661,12 @@
          <td></td>
       </tr>
       <tr>
+         <td>Jigsaw size: <label id="width">w</label> x <label id="height">h</label> mm</td>
+      </tr>
+
+
+      
+      <tr>
          <td><button onclick="generate()">Generate Jigsaw</button></td>
          <td><button onclick="savesvg(true)">Download SVG (individual pieces, overlap)</button></td>
          <td><button onclick="savesvg(false)">Download SVG (non-overlapping vectors)</button></td>
@@ -668,6 +675,11 @@
    <svg id="puzzlecontainer">
       <!-- <path id="puzzlepath" fill="none" stroke="Black"></path> -->
    </svg>
+   <table>
+      <tr>
+         <td>This jigsaw has: <label id="piececount">0</label> pieces</td>
+      </tr>
+   </table>
 </body>
 
 </html>
