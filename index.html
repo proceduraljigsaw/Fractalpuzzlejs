@@ -8,7 +8,7 @@
    <script type="text/javascript">
 
       var seed = 1;
-      var ncols, nrows, rad, frame, minp, maxp;
+      var ncols, nrows, rad, frame, framecorner, minp, maxp;
       var jig;
       function random() { var x = Math.sin(seed) * 10000; seed += 1; return x - Math.floor(x); }
       function uniform(min, max) { var r = random(); return min + r * (max - min); }
@@ -19,9 +19,9 @@
       function updateseed() { $("_seed").value = $("seed").value; /*update();*/ }
       function updatencols() { $("_ncols").value = $("ncols").value; update(); }
       function updatenrows() { $("_nrows").value = $("nrows").value; update(); }
-      function update_seed() { var val = parseFloat($("_seed").value); if (!isNaN(val)) { $("seed").value = val; } updateseed(); }
-      function update_ncols() { var val = parseFloat($("_ncols").value); if (!isNaN(val)) { $("ncols").value = val; } updatencols(); }
-      function update_nrows() { var val = parseFloat($("_nrows").value); if (!isNaN(val)) { $("nrows").value = val; } updatenrows(); }
+      function update_seed() { var val = parseInt($("_seed").value); if (!isNaN(val)) { $("seed").value = val; } updateseed(); }
+      function update_ncols() { var val = parseInt($("_ncols").value); if (!isNaN(val)) { $("ncols").value = val; } updatencols(); }
+      function update_nrows() { var val = parseInt($("_nrows").value); if (!isNaN(val)) { $("nrows").value = val; } updatenrows(); }
 
       class Point {
          constructor(x, y) {
@@ -398,15 +398,37 @@
             this.pieces.forEach((p) => {
                var arcs = [];
                CircleFractalJigsaw.addarcs(p[0], p, arcs, crad, border, true);
-               data += "<path fill=\"none\" stroke=\"DarkBlue\" stroke-width=\"0.1\" d=\"M" + arcs[0].sp.x + "," + arcs[0].sp.y + " ";
+               data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"M" + arcs[0].sp.x + "," + arcs[0].sp.y + " ";
                arcs.forEach((a) => {
                   data += "A " + crad + " " + crad + " 90 0," + a.sign + " " + a.ep.x + " " + a.ep.y + " ";
                });
                data += "Z\"></path>";
             });
+            data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\""+createframe()+"\"></path>";
             data += "</svg>";
             return data;
          }
+
+         exportsvg_nooverlap(border, crad) {
+            var width = this.ncols * 2 * crad + 2 * border;
+            var height = this.nrows * 2 * crad + 2 * border;
+
+            var data = "<?xml version=\"1.0\" encoding=\"utf-8\" ?><svg baseProfile=\"full\" height=\"" + height + "mm\" version=\"1.1\" viewBox=\"0 0 " + width + " " + height + "\" width=\"" + width + "mm\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:ev=\"http://www.w3.org/2001/xml-events\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"><defs />"
+
+            this.pieces.forEach((p) => {
+               var arcs = [];
+               CircleFractalJigsaw.addarcs(p[0], p, arcs, crad, border, true);
+               data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"M" + arcs[0].sp.x + "," + arcs[0].sp.y + " ";
+               arcs.forEach((a) => {
+                  data += "A " + crad + " " + crad + " 90 0," + a.sign + " " + a.ep.x + " " + a.ep.y + " ";
+               });
+               data += "Z\"></path>";
+            });
+            data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\""+createframe()+"\"></path>";
+            data += "</svg>";
+            return data;
+         }
+
          singlepath(border, crad) {
 
             var data = "";
@@ -490,8 +512,9 @@
          seed = parseInt($("seed").value);
          ncols = parseInt($("ncols").value);
          nrows = parseInt($("nrows").value);
-         frame = parseInt($("minpsize").value);
-         rad = parseInt($("cradius").value);
+         frame = parseFloat($("frame").value);
+         framecorner = parseFloat($("framecorner").value);
+         rad = parseFloat($("cradius").value);
          minp = parseInt($("minpsize").value);
          maxp = parseInt($("maxpsize").value);
       }
@@ -504,6 +527,35 @@
       function savesvg() {
          save("jigsaw.svg", jig.exportsvg(frame, rad));
       }
+      function createframe() {
+         var width = ncols * 2 * rad + 2 * frame;
+         var height = nrows * 2 * rad + 2 * frame;
+
+         var data = "M" + framecorner + "," + 0 + " ";
+         data += "H " + (width - framecorner);
+         if (framecorner > 0) {
+            data += "A " + framecorner + " " + framecorner + " 90 0,1 " + width + " " + framecorner + " ";
+         }
+
+         data += "V " + (height - framecorner);
+         if (framecorner > 0) {
+            data += "A " + framecorner + " " + framecorner + " 90 0,1 " + (width - framecorner) + " " + height + " ";
+         }
+
+         data += "H " + (framecorner);
+         if (framecorner > 0) {
+            data += "A " + framecorner + " " + framecorner + " 90 0,1 " + 0 + " " + (height - framecorner) + " ";
+         }
+
+         data += "V " + (framecorner);
+         if (framecorner > 0) {
+            data += "A " + framecorner + " " + framecorner + " 90 0,1 " + (framecorner) + " " + 0 + " ";
+         }
+
+         data += "Z";
+         return data;
+      }
+
       function generate() {
          parse_input();
          jig = new CircleFractalJigsaw(ncols, nrows, minp, maxp);
@@ -526,6 +578,12 @@
             newpath.setAttribute("fill", "#" + Math.floor(uniform(0, 16777216)).toString(16));
             $("puzzlecontainer").appendChild(newpath);
          });
+         var framedraw = document.createElementNS($("puzzlecontainer").namespaceURI, "path")
+         framedraw.setAttribute("d", createframe());
+         framedraw.setAttribute("stroke", "black");
+         framedraw.setAttribute("fill", "none");
+         framedraw.setAttribute("stroke-width", 0.5);
+         $("puzzlecontainer").appendChild(framedraw);
 
       }
    </script>
@@ -533,50 +591,55 @@
 
 
 <body onload="$('seed').value = Math.random() * 10000; updateseed();">
-<table>
-   <tr>
-      <td>Seed:</td>
-      <td><input id="_seed" type="text" value="0" onchange="update_seed()" /></td>
-      <td><input id="seed" type="range" value="0" min="0" max="9999" step="1" onchange="updateseed()" /></td>
-   </tr>
-   <tr>
-      <td>Coulmns:</td>
-      <td><input id="_ncols" type="text" value="20" onchange="update_ncols()" /></td>
-      <td><input id="ncols" type="range" value="20" min="5" max="80" step="1" onchange="updatencols()" /></td>
-   </tr>
-   <tr>
-      <td>Rows:</td>
-      <td><input id="_nrows" type="text" value="20" onchange="update_nrows()" /></td>
-      <td><input id="nrows" type="range" value="20" min="5" max="80" step="1" onchange="updatenrows()" /></td>
-   </tr>
-   <tr>
-      <td>Circle Radius:</td>
-      <td><input id="cradius" type="text" value="6.0" size="4" onchange="update()" /> mm</td>
-      <td></td>
-   </tr>
-   <tr>
-      <td>Frame size:</td>
-      <td><input id="frame" type="text" value="6.0" size="4" onchange="update()" /> mm</td>
-      <td></td>
-   </tr>
-   <tr>
-      <td>Minimum pieze size:</td>
-      <td><input id="minpsize" type="text" value="4" size="4" onchange="update()" /> tiles</td>
-      <td></td>
-   </tr>
-   <tr>
-      <td>Maximum piece size:</td>
-      <td><input id="maxpsize" type="text" value="50" size="4" onchange="update()" /> tiles</td>
-      <td></td>
-   </tr>
-   <tr>
-      <td><button onclick="generate()">Generate Jigsaw</button></td>
-      <td><button onclick="savesvg()">Download SVG</button></td>
-   </tr>
-</table>
-<svg id="puzzlecontainer">
-   <!-- <path id="puzzlepath" fill="none" stroke="Black"></path> -->
-</svg>
+   <table>
+      <tr>
+         <td>Seed:</td>
+         <td><input id="_seed" type="text" value="0" onchange="update_seed()" /></td>
+         <td><input id="seed" type="range" value="0" min="0" max="9999" step="1" onchange="updateseed()" /></td>
+      </tr>
+      <tr>
+         <td>Coulmns:</td>
+         <td><input id="_ncols" type="text" value="20" onchange="update_ncols()" /></td>
+         <td><input id="ncols" type="range" value="20" min="5" max="80" step="1" onchange="updatencols()" /></td>
+      </tr>
+      <tr>
+         <td>Rows:</td>
+         <td><input id="_nrows" type="text" value="20" onchange="update_nrows()" /></td>
+         <td><input id="nrows" type="range" value="20" min="5" max="80" step="1" onchange="updatenrows()" /></td>
+      </tr>
+      <tr>
+         <td>Circle Radius:</td>
+         <td><input id="cradius" type="text" value="6.0" size="4" onchange="update()" /> mm</td>
+         <td></td>
+      </tr>
+      <tr>
+         <td>Frame size:</td>
+         <td><input id="frame" type="text" value="6.0" size="4" onchange="update()" /> mm</td>
+         <td></td>
+      </tr>
+      <tr>
+         <td>Frame corner radius:</td>
+         <td><input id="framecorner" type="text" value="4" size="4" onchange="update()" /> mm</td>
+         <td></td>
+      </tr>
+      <tr>
+         <td>Minimum pieze size:</td>
+         <td><input id="minpsize" type="text" value="4" size="4" onchange="update()" /> tiles</td>
+         <td></td>
+      </tr>
+      <tr>
+         <td>Maximum piece size:</td>
+         <td><input id="maxpsize" type="text" value="50" size="4" onchange="update()" /> tiles</td>
+         <td></td>
+      </tr>
+      <tr>
+         <td><button onclick="generate()">Generate Jigsaw</button></td>
+         <td><button onclick="savesvg()">Download SVG</button></td>
+      </tr>
+   </table>
+   <svg id="puzzlecontainer">
+      <!-- <path id="puzzlepath" fill="none" stroke="Black"></path> -->
+   </svg>
 </body>
 
 </html>
