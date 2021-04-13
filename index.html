@@ -16,7 +16,7 @@
 
       function $(id) { return document.getElementById(id); }
 
-      function updateseed() { $("_seed").value = $("seed").value; update();}
+      function updateseed() { $("_seed").value = $("seed").value; update(); }
       function updatencols() { $("_ncols").value = $("ncols").value; update(); }
       function updatenrows() { $("_nrows").value = $("nrows").value; update(); }
       function update_seed() { var val = parseInt($("_seed").value); if (!isNaN(val)) { $("seed").value = val; } updateseed(); }
@@ -137,11 +137,11 @@
                }
                return acc;
             }, []);
-            
+
             var index = emptyvertices[Math.floor(uniform(0, emptyvertices.length))];
-            var y = Math.floor(index/this.nrow);
-            var x = index%this.nrow;
-            return new Point(x,y);
+            var y = Math.floor(index / this.nrow);
+            var x = index % this.nrow;
+            return new Point(x, y);
          }
 
          reset() {
@@ -149,8 +149,8 @@
             this.cellmap.fill(false);
             this._nunvisited = this.ncol * this.nrow;
          }
-         isvertexvalid(v){
-            return (v.x >=0 && v.x < this.nrow && v.y >=0 && v.y < this.ncol);
+         isvertexvalid(v) {
+            return (v.x >= 0 && v.x < this.nrow && v.y >= 0 && v.y < this.ncol);
          }
 
          isvertexvisited(v) {
@@ -275,7 +275,7 @@
             this.grid.visitvertex(vi);
 
 
-            while (this.grid.nunvisited > 0  && myvertices.length < targetpiecelen) {
+            while (this.grid.nunvisited > 0 && myvertices.length < targetpiecelen) {
                var possibleconnections = this.possibleconnections(myvertices, false);
                if (possibleconnections.length == 0) {
                   break;
@@ -487,7 +487,7 @@
             }
             this.regenerategrid();
          }
-         npieces(){
+         npieces() {
             return this.pieces.length;
          }
          regenerategrid() {
@@ -544,7 +544,7 @@
 
       function update() {
          parse_input();
-         $("width").innerHTML =  ncols * 2 * rad + 2 * frame;
+         $("width").innerHTML = ncols * 2 * rad + 2 * frame;
          $("height").innerHTML = nrows * 2 * rad + 2 * frame;
       }
       function savesvg(overlap) {
@@ -612,7 +612,7 @@
          framedraw.setAttribute("fill", "none");
          framedraw.setAttribute("stroke-width", 0.5);
          $("puzzlecontainer").appendChild(framedraw);
-         $("piececount").innerHTML=jig.npieces();
+         $("piececount").innerHTML = jig.npieces();
       }
    </script>
 </head>
@@ -664,8 +664,6 @@
          <td>Jigsaw size: <label id="width">w</label> x <label id="height">h</label> mm</td>
       </tr>
 
-
-      
       <tr>
          <td><button onclick="generate()">Generate Jigsaw</button></td>
          <td><button onclick="savesvg(true)">Download SVG (individual pieces, overlap)</button></td>
