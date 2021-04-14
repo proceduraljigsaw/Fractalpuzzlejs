@@ -414,6 +414,32 @@
             data += "</svg>";
             return data;
          }
+         exportsvg_nooverlap_singlepath(border, crad) {
+            var width = this.ncols * 2 * crad + 2 * border;
+            var height = this.nrows * 2 * crad + 2 * border;
+            var data = "<?xml version=\"1.0\" encoding=\"utf-8\" ?><svg baseProfile=\"full\" height=\"" + height + "mm\" version=\"1.1\" viewBox=\"0 0 " + width + " " + height + "\" width=\"" + width + "mm\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:ev=\"http://www.w3.org/2001/xml-events\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"><defs />"
+            var allarcs = [];
+            data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"";
+            var currentlocation = new Point(-1,-1);
+            this.pieces.forEach((p) => {
+               var arcs = [];
+               CircleFractalJigsaw.addarcs(p[0], p, arcs, crad, border, true);
+               arcs.forEach((a) => {
+                  if (!allarcs.find(na => na.eq(a))) {
+                     allarcs.push(a);
+                     if (!a.sp.eq(currentlocation)) {
+                        data += "M" + a.sp.x + "," + a.sp.y + " "
+                     }
+                     data += "A " + crad + " " + crad + " 90 0," + a.sign + " " + a.ep.x + " " + a.ep.y + " ";
+                     currentlocation = a.ep;
+                  }
+               });
+            });
+            data += "\"></path>"
+            data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"" + createframe() + "\"></path>";
+            data += "</svg>";
+            return data;
+         }
 
          exportsvg_nooverlap(border, crad) {
             var width = this.ncols * 2 * crad + 2 * border;
@@ -547,12 +573,19 @@
          $("width").innerHTML = ncols * 2 * rad + 2 * frame;
          $("height").innerHTML = nrows * 2 * rad + 2 * frame;
       }
-      function savesvg(overlap) {
-         if (overlap) {
-            save("jigsaw.svg", jig.exportsvg(frame, rad));
-         } else {
-            save("jigsaw.svg", jig.exportsvg_nooverlap(frame, rad));
+      function savesvg(mode) {
+         switch (mode) {
+            case 0:
+               save("jigsaw.svg", jig.exportsvg(frame, rad));
+               break;
+            case 1:
+               save("jigsaw.svg", jig.exportsvg_nooverlap(frame, rad));
+               break;
+            case 2:
+               save("jigsaw.svg", jig.exportsvg_nooverlap_singlepath(frame, rad));
+               break;
          }
+
       }
 
       function createframe() {
@@ -666,8 +699,9 @@
 
       <tr>
          <td><button onclick="generate()">Generate Jigsaw</button></td>
-         <td><button onclick="savesvg(true)">Download SVG (individual pieces, overlap)</button></td>
-         <td><button onclick="savesvg(false)">Download SVG (non-overlapping vectors)</button></td>
+         <td><button onclick="savesvg(0)">Download SVG (individual pieces, overlap)</button></td>
+         <td><button onclick="savesvg(1)">Download SVG (non-overlapping vectors)</button></td>
+         <td><button onclick="savesvg(2)">Download SVG (non-overlapping vectors, single path)</button></td>
       </tr>
    </table>
    <svg id="puzzlecontainer">
