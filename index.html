@@ -406,7 +406,7 @@
                CircleFractalJigsaw.addarcs(p[0], p, arcs, crad, border, true);
                data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"M" + arcs[0].sp.x + "," + arcs[0].sp.y + " ";
                arcs.forEach((a) => {
-                  data += "A " + crad + " " + crad + " 90 0," + a.sign + " " + a.ep.x + " " + a.ep.y + " ";
+                  data += "A " + crad + " " + crad + " 0 0," + a.sign + " " + a.ep.x + " " + a.ep.y + " ";
                });
                data += "Z\"></path>";
             });
@@ -430,7 +430,7 @@
                      if (!a.sp.eq(currentlocation)) {
                         data += "M" + a.sp.x + "," + a.sp.y + " "
                      }
-                     data += "A " + crad + " " + crad + " 90 0," + a.sign + " " + a.ep.x + " " + a.ep.y + " ";
+                     data += "A " + crad + " " + crad + " 0 0," + a.sign + " " + a.ep.x + " " + a.ep.y + " ";
                      currentlocation = a.ep;
                   }
                });
@@ -464,7 +464,7 @@
                         path = "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"M" + a.sp.x + "," + a.sp.y + " ";
                         inpath = true;
                      }
-                     path += "A " + crad + " " + crad + " 90 0," + a.sign + " " + a.ep.x + " " + a.ep.y + " ";
+                     path += "A " + crad + " " + crad + " 0 0," + a.sign + " " + a.ep.x + " " + a.ep.y + " ";
                   }
                });
                if (inpath) {
@@ -485,7 +485,7 @@
                CircleFractalJigsaw.addarcs(p[0], p, arcs, crad, border, true);
                data += "M" + arcs[0].sp.x + "," + arcs[0].sp.y + " ";
                arcs.forEach((a) => {
-                  data += "A " + crad + " " + crad + " 90 0," + a.sign + " " + a.ep.x + " " + a.ep.y + " ";
+                  data += "A " + crad + " " + crad + " 0 0," + a.sign + " " + a.ep.x + " " + a.ep.y + " ";
                });
             });
             return data;
@@ -500,7 +500,7 @@
                CircleFractalJigsaw.addarcs(p[0], p, arcs, crad, border, true);
                data += "M" + arcs[0].sp.x + "," + arcs[0].sp.y + " ";
                arcs.forEach((a) => {
-                  data += "A " + crad + " " + crad + " 90 0," + a.sign + " " + a.ep.x + " " + a.ep.y + " ";
+                  data += "A " + crad + " " + crad + " 0 0," + a.sign + " " + a.ep.x + " " + a.ep.y + " ";
                });
                data += "Z"
                paths.push(data);
@@ -595,22 +595,22 @@
          var data = "M" + framecorner + "," + 0 + " ";
          data += "H " + (width - framecorner);
          if (framecorner > 0) {
-            data += "A " + framecorner + " " + framecorner + " 90 0,1 " + width + " " + framecorner + " ";
+            data += "A " + framecorner + " " + framecorner + " 0 0,1 " + width + " " + framecorner + " ";
          }
 
          data += "V " + (height - framecorner);
          if (framecorner > 0) {
-            data += "A " + framecorner + " " + framecorner + " 90 0,1 " + (width - framecorner) + " " + height + " ";
+            data += "A " + framecorner + " " + framecorner + " 0 0,1 " + (width - framecorner) + " " + height + " ";
          }
 
          data += "H " + (framecorner);
          if (framecorner > 0) {
-            data += "A " + framecorner + " " + framecorner + " 90 0,1 " + 0 + " " + (height - framecorner) + " ";
+            data += "A " + framecorner + " " + framecorner + " 0 0,1 " + 0 + " " + (height - framecorner) + " ";
          }
 
          data += "V " + (framecorner);
          if (framecorner > 0) {
-            data += "A " + framecorner + " " + framecorner + " 90 0,1 " + (framecorner) + " " + 0 + " ";
+            data += "A " + framecorner + " " + framecorner + " 0 0,1 " + (framecorner) + " " + 0 + " ";
          }
 
          data += "Z";

@@ -8,6 +8,7 @@ I will probably add a choice to use a non-deterministic randomness generator so 
 SVG can be exported in two ways:
 
 *Overlapping: pieces are individually contoured. This is good if you want to cut them with a CNC or something with thick cutting width.
+
 *Non overlapping: perfect for lasercutting, as the cutting path is created such that no vectors overlap.
 
 Enjoy!
