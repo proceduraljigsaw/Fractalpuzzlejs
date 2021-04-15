@@ -23,10 +23,17 @@
       function update_ncols() { var val = parseInt($("_ncols").value); if (!isNaN(val)) { $("ncols").value = val; } updatencols(); }
       function update_nrows() { var val = parseInt($("_nrows").value); if (!isNaN(val)) { $("nrows").value = val; } updatenrows(); }
 
-      class Point {
+      class Tile {
          constructor(x, y) {
             this._x = x;
             this._y = y;
+            this.haspossibleconnections = true;
+         }
+         get hasconnections() {
+            return this.haspossibleconnections;
+         }
+         set hasconnections(val) {
+            this.haspossibleconnections = val;
          }
          get x() {
             return this._x;
@@ -104,16 +111,16 @@
             var p2;
             switch (quadrant) {
                case 0:
-                  p2 = new Point(p1.x + 1, p1.y - 1);
+                  p2 = new Tile(p1.x + 1, p1.y - 1);
                   break;
                case 1:
-                  p2 = new Point(p1.x - 1, p1.y - 1);
+                  p2 = new Tile(p1.x - 1, p1.y - 1);
                   break;
                case 2:
-                  p2 = new Point(p1.x - 1, p1.y + 1);
+                  p2 = new Tile(p1.x - 1, p1.y + 1);
                   break;
                case 3:
-                  p2 = new Point(p1.x + 1, p1.y + 1);
+                  p2 = new Tile(p1.x + 1, p1.y + 1);
                   break;
             }
             return new DiagonalConnection(p1, p2, p2_taken);
@@ -130,18 +137,18 @@
             this._nunvisited = this.ncol * this.nrow;
          }
 
-         randomemptyvertex() {
-            var emptyvertices = this.visited.reduce(function (acc, curr, index) {
+         randomemptytile() {
+            var emptytiles = this.visited.reduce(function (acc, curr, index) {
                if (!curr) {
                   acc.push(index);
                }
                return acc;
             }, []);
 
-            var index = emptyvertices[Math.floor(uniform(0, emptyvertices.length))];
+            var index = emptytiles[Math.floor(uniform(0, emptytiles.length))];
             var y = Math.floor(index / this.nrow);
             var x = index % this.nrow;
-            return new Point(x, y);
+            return new Tile(x, y);
          }
 
          reset() {
@@ -149,17 +156,17 @@
             this.cellmap.fill(false);
             this._nunvisited = this.ncol * this.nrow;
          }
-         isvertexvalid(v) {
+         istilevalid(v) {
             return (v.x >= 0 && v.x < this.nrow && v.y >= 0 && v.y < this.ncol);
          }
 
-         isvertexvisited(v) {
+         istilevisited(v) {
             return this.visited[v.y * this.nrow + v.x];
          }
          iscellempty(c) {
             return !this.cellmap[c.y * this.nrow + c.x];
          }
-         visitvertex(v) {
+         visittile(v) {
             if (!this.visited[v.y * this.nrow + v.x]) {
                this.visited[v.y * this.nrow + v.x] = true;
                this._nunvisited--;
@@ -186,7 +193,7 @@
 
       class Arc {
          constructor(gcp, rad, offs, quad, sign) {
-            this._cp = new Point(gcp.x * 2 * rad + rad + offs, gcp.y * 2 * rad + rad + offs);
+            this._cp = new Tile(gcp.x * 2 * rad + rad + offs, gcp.y * 2 * rad + rad + offs);
             this._quad = quad;
             this._rad = rad;
             this._sign = sign
@@ -194,20 +201,20 @@
             var pb;
             switch (quad) {
                case 0:
-                  pa = new Point(this._cp.x + rad, this._cp.y);
-                  pb = new Point(this._cp.x, this._cp.y - rad);
+                  pa = new Tile(this._cp.x + rad, this._cp.y);
+                  pb = new Tile(this._cp.x, this._cp.y - rad);
                   break;
                case 1:
-                  pa = new Point(this._cp.x, this._cp.y - rad);
-                  pb = new Point(this._cp.x - rad, this._cp.y);
+                  pa = new Tile(this._cp.x, this._cp.y - rad);
+                  pb = new Tile(this._cp.x - rad, this._cp.y);
                   break;
                case 2:
-                  pa = new Point(this._cp.x - rad, this._cp.y);
-                  pb = new Point(this._cp.x, this._cp.y + rad);
+                  pa = new Tile(this._cp.x - rad, this._cp.y);
+                  pb = new Tile(this._cp.x, this._cp.y + rad);
                   break;
                case 3:
-                  pa = new Point(this._cp.x, this._cp.y + rad);
-                  pb = new Point(this._cp.x + rad, this._cp.y);
+                  pa = new Tile(this._cp.x, this._cp.y + rad);
+                  pb = new Tile(this._cp.x + rad, this._cp.y);
                   break;
             }
             if (this.sign == 0) {
@@ -248,48 +255,52 @@
          }
 
 
-         possibleconnections(myvertices, allowpartials) {
+         possibleconnections(mytiles, allowpartials) {
             var pcs = [];
             var neighbors = [[-1, -1], [-1, 1], [1, -1], [1, 1]];
-            neighbors.forEach((n) => {
-               myvertices.forEach((v) => {
-                  let cpt = new Point(v.x + n[0], v.y + n[1]);
-                  if (this.grid.isvertexvalid(cpt) && !myvertices.find(nv => nv.eq(cpt))) {
-                     let dc = new DiagonalConnection(v, cpt, !this.grid.isvertexvisited(cpt));
-                     if (this.grid.iscellempty(dc.cell)) {
-                        if (allowpartials || !this.grid.isvertexvisited(cpt)) {
-                           pcs.push(dc);
+            mytiles.forEach((v) => {
+               if (v.hasconnections || allowpartials) {
+                  v.hasconnections = false;
+                  neighbors.forEach((n) => {
+                     let cpt = new Tile(v.x + n[0], v.y + n[1]);
+                     if (this.grid.istilevalid(cpt) && !mytiles.find(nv => nv.eq(cpt))) {
+                        let dc = new DiagonalConnection(v, cpt, !this.grid.istilevisited(cpt));
+                        if (this.grid.iscellempty(dc.cell)) {
+                           if (allowpartials || !this.grid.istilevisited(cpt)) {
+                              pcs.push(dc);
+                              v.hasconnections = true;
+                           }
                         }
                      }
-                  }
-               });
+                  });
+               }
             });
             return pcs;
          }
          createpiece() {
-            var myvertices = new Array();
+            var mytiles = new Array();
             var myconnections = new Array();
             var targetpiecelen = Math.round(uniform(this.minpiecelen, this.maxpiecelen));
-            var vi = this.grid.randomemptyvertex();
-            myvertices.push(vi);
-            this.grid.visitvertex(vi);
+            var vi = this.grid.randomemptytile();
+            mytiles.push(vi);
+            this.grid.visittile(vi);
 
 
-            while (this.grid.nunvisited > 0 && myvertices.length < targetpiecelen) {
-               var possibleconnections = this.possibleconnections(myvertices, false);
+            while (this.grid.nunvisited > 0 && mytiles.length < targetpiecelen) {
+               var possibleconnections = this.possibleconnections(mytiles, false);
                if (possibleconnections.length == 0) {
                   break;
                }
                var chosenconnection = possibleconnections[Math.floor(uniform(0, possibleconnections.length))];
                myconnections.push(chosenconnection);
-               myvertices.push(chosenconnection.p2);
+               mytiles.push(chosenconnection.p2);
                this.grid.occupycell(chosenconnection.cell);
-               this.grid.visitvertex(chosenconnection.p2);
+               this.grid.visittile(chosenconnection.p2);
 
 
             }
 
-            if (myvertices.length >= this.minpiecelen) {
+            if (mytiles.length >= this.minpiecelen) {
                this.pieces.push(myconnections);
             } else {
                myconnections.forEach((c) => {
@@ -302,22 +313,22 @@
             var filled = false;
             this.pieces = this.pieces.sort((a, b) => a.length - b.length);
             this.pieces.forEach((p) => {
-               var vertices = [p[0].p1];
+               var tiles = [p[0].p1];
                p.forEach((con) => {
-                  vertices.push(con.p2);
+                  tiles.push(con.p2);
                });
-               vertices.forEach((v) => {
+               tiles.forEach((v) => {
                   var possibleconnections = this.possibleconnections([v], allowpartials);
                   if (possibleconnections.length) {
                      possibleconnections = possibleconnections.filter(function (ele) {
-                        return !Boolean(vertices.find(vf => vf.eq(ele.p2)));
+                        return !Boolean(tiles.find(vf => vf.eq(ele.p2)));
                      });
                      possibleconnections.forEach((pc) => {
                         p.push(pc);
-                        vertices.push(pc.p2);
+                        tiles.push(pc.p2);
                         filled = true;
                         this.grid.occupycell(pc.cell);
-                        this.grid.visitvertex(pc.p2);
+                        this.grid.visittile(pc.p2);
                      });
                   }
                });
@@ -331,16 +342,16 @@
             var newarc;
             switch (con.quad) {
                case 0:
-                  newarc = new Arc(new Point(con.p1.x + 1, con.p1.y), rad, border, 1, 1);
+                  newarc = new Arc(new Tile(con.p1.x + 1, con.p1.y), rad, border, 1, 1);
                   break;
                case 1:
-                  newarc = new Arc(new Point(con.p1.x, con.p1.y - 1), rad, border, 2, 1);
+                  newarc = new Arc(new Tile(con.p1.x, con.p1.y - 1), rad, border, 2, 1);
                   break;
                case 2:
-                  newarc = new Arc(new Point(con.p1.x - 1, con.p1.y), rad, border, 3, 1);
+                  newarc = new Arc(new Tile(con.p1.x - 1, con.p1.y), rad, border, 3, 1);
                   break;
                case 3:
-                  newarc = new Arc(new Point(con.p1.x, con.p1.y + 1), rad, border, 0, 1);
+                  newarc = new Arc(new Tile(con.p1.x, con.p1.y + 1), rad, border, 0, 1);
                   break;
             }
             arcs.push(newarc);
@@ -364,16 +375,16 @@
             switch (con.quad) {
 
                case 0:
-                  newarc = new Arc(new Point(con.p1.x, con.p1.y - 1), rad, border, 3, 1);
+                  newarc = new Arc(new Tile(con.p1.x, con.p1.y - 1), rad, border, 3, 1);
                   break;
                case 1:
-                  newarc = new Arc(new Point(con.p1.x - 1, con.p1.y), rad, border, 0, 1);
+                  newarc = new Arc(new Tile(con.p1.x - 1, con.p1.y), rad, border, 0, 1);
                   break;
                case 2:
-                  newarc = new Arc(new Point(con.p1.x, con.p1.y + 1), rad, border, 1, 1);
+                  newarc = new Arc(new Tile(con.p1.x, con.p1.y + 1), rad, border, 1, 1);
                   break;
                case 3:
-                  newarc = new Arc(new Point(con.p1.x + 1, con.p1.y), rad, border, 2, 1);
+                  newarc = new Arc(new Tile(con.p1.x + 1, con.p1.y), rad, border, 2, 1);
                   break;
             }
             arcs.push(newarc);
@@ -420,7 +431,7 @@
             var data = "<?xml version=\"1.0\" encoding=\"utf-8\" ?><svg baseProfile=\"full\" height=\"" + height + "mm\" version=\"1.1\" viewBox=\"0 0 " + width + " " + height + "\" width=\"" + width + "mm\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:ev=\"http://www.w3.org/2001/xml-events\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"><defs />"
             var allarcs = [];
             data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"";
-            var currentlocation = new Point(-1,-1);
+            var currentlocation = new Tile(-1, -1);
             this.pieces.forEach((p) => {
                var arcs = [];
                CircleFractalJigsaw.addarcs(p[0], p, arcs, crad, border, true);
@@ -521,12 +532,12 @@
             var np = 1;
             this.pieces.forEach((p) => {
                p.forEach((c) => {
-                  if (!this.grid.isvertexvisited(c.p1)) {
-                     this.grid.visitvertex(c.p1);
+                  if (!this.grid.istilevisited(c.p1)) {
+                     this.grid.visittile(c.p1);
                   }
                   if (c.p2_taken) {
-                     if (!this.grid.isvertexvisited(c.p2)) {
-                        this.grid.visitvertex(c.p2);
+                     if (!this.grid.istilevisited(c.p2)) {
+                        this.grid.visittile(c.p2);
                      }
                   }
                   this.grid.occupycell(c.cell);
@@ -661,12 +672,12 @@
       <tr>
          <td>Coulmns:</td>
          <td><input id="_ncols" type="text" value="20" onchange="update_ncols()" /></td>
-         <td><input id="ncols" type="range" value="20" min="5" max="100" step="1" onchange="updatencols()" /></td>
+         <td><input id="ncols" type="range" value="20" min="2" max="250" step="1" onchange="updatencols()" /></td>
       </tr>
       <tr>
          <td>Rows:</td>
          <td><input id="_nrows" type="text" value="20" onchange="update_nrows()" /></td>
-         <td><input id="nrows" type="range" value="20" min="5" max="100" step="1" onchange="updatenrows()" /></td>
+         <td><input id="nrows" type="range" value="20" min="2" max="250" step="1" onchange="updatenrows()" /></td>
       </tr>
       <tr>
          <td>Circle Radius:</td>
@@ -680,7 +691,7 @@
       </tr>
       <tr>
          <td>Frame corner radius:</td>
-         <td><input id="framecorner" type="text" value="4" size="4" onchange="update()" /> mm</td>
+         <td><input id="framecorner" type="text" value="4.0" size="4" onchange="update()" /> mm</td>
          <td></td>
       </tr>
       <tr>
