@@ -8,9 +8,15 @@
    <script type="text/javascript">
 
       var seed = 1;
-      var ncols, nrows, rad, frame, framecorner, minp, maxp;
+      var ncols, nrows, rad, frame, framecorner, minp, maxp, coloring_seed = 1;
       var jig;
-      function random() { var x = Math.sin(seed) * 10000; seed += 1; return x - Math.floor(x); }
+      function random() {
+         if ($("ndr").checked) {
+            return Math.random();
+         } else {
+            var x = Math.sin(seed) * 10000; seed += 1; return x - Math.floor(x);
+         }
+      }
       function uniform(min, max) { var r = random(); return min + r * (max - min); }
       function rbool() { return random() > 0.5; }
 
@@ -488,6 +494,21 @@
             return data;
          }
 
+         exportsvg_colored(border, crad) {
+            var width = this.ncols * 2 * crad + 2 * border;
+            var height = this.nrows * 2 * crad + 2 * border;
+            var data = "<?xml version=\"1.0\" encoding=\"utf-8\" ?><svg baseProfile=\"full\" height=\"" + height + "mm\" version=\"1.1\" viewBox=\"0 0 " + width + " " + height + "\" width=\"" + width + "mm\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:ev=\"http://www.w3.org/2001/xml-events\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"><defs />"
+            seed = coloring_seed;
+            this.multipaths(frame, rad).forEach((p) => {
+               data += "<path fill=\"#" + Math.floor(uniform(0, 16777216)).toString(16) + "\" stroke=\"black\" stroke-width=\"" + rad / 20.0 + "\" d=\"";
+               data += p
+               data += "\"></path>"
+            });
+            data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"" + createframe() + "\"></path>";
+            data += "</svg>";
+            return data;
+         }
+
          singlepath(border, crad) {
 
             var data = "";
@@ -595,6 +616,9 @@
             case 2:
                save("jigsaw.svg", jig.exportsvg_nooverlap_singlepath(frame, rad));
                break;
+            case 3:
+               save("jigsaw.svg", jig.exportsvg_colored(frame, rad));
+               break;
          }
 
       }
@@ -642,6 +666,7 @@
          while ($("puzzlecontainer").firstChild) {
             $("puzzlecontainer").removeChild($("puzzlecontainer").firstChild);
          }
+         coloring_seed = seed;
          jig.multipaths(frame, rad).forEach((p) => {
             var newpath = document.createElementNS($("puzzlecontainer").namespaceURI, "path")
             newpath.setAttribute("d", p);
@@ -670,6 +695,10 @@
          <td><input id="seed" type="range" value="0" min="0" max="9999" step="1" onchange="updateseed()" /></td>
       </tr>
       <tr>
+         <td>Use non-deterministic randomness:</td>
+         <td><input id="ndr" type="checkbox" />(seed is ignored if ticked)</td>
+      </tr>
+      <tr>
          <td>Columns:</td>
          <td><input id="_ncols" type="text" value="20" onchange="update_ncols()" /></td>
          <td><input id="ncols" type="range" value="20" min="2" max="250" step="1" onchange="updatencols()" /></td>
@@ -680,7 +709,7 @@
          <td><input id="nrows" type="range" value="20" min="2" max="250" step="1" onchange="updatenrows()" /></td>
       </tr>
       <tr>
-         <td>Circle Radius:</td>
+         <td>Tile Radius:</td>
          <td><input id="cradius" type="text" value="6.0" size="4" onchange="update()" /> mm</td>
          <td></td>
       </tr>
@@ -710,7 +739,12 @@
 
       <tr>
          <td><button onclick="generate()">Generate Jigsaw</button></td>
+      </tr>
+      <tr>
+         <td><button onclick="savesvg(3)">Download SVG (colored pieces)</button></td>
          <td><button onclick="savesvg(0)">Download SVG (individual pieces, overlap)</button></td>
+      </tr>
+      <tr>
          <td><button onclick="savesvg(1)">Download SVG (non-overlapping vectors)</button></td>
          <td><button onclick="savesvg(2)">Download SVG (non-overlapping vectors, single path)</button></td>
       </tr>
@@ -723,6 +757,34 @@
          <td>This jigsaw has: <label id="piececount">0</label> pieces</td>
       </tr>
    </table>
+   <h2>What is this?</h2>
+   <p>This is a "fractal" jigsaw <a href="https://cubesolve.com/" target="_blank" rel="nofollow">puzzle</a> generator. It creates jigsaws with a pattern that resembles the "inner" part of a space-filling fractal <a href="https://en.wikipedia.org/wiki/Dragon_curve">dragon curve</a>, although no fractal geometry is involved in the generation process. Additionally, I've found that some people like the texture it generates in single-piece moe (see below) and use it for lamp shades and such.</p>
+   <p>These jigsaws are meant for laser-cutting.</p>
+   <p>This is open-source software. Check the github repo <a href="https://github.com/proceduraljigsaw/Fractalpuzzlejs">here</a>.</p>
+   <h2>How to use?</h2>
+   <p>The jigsaw starts with tiles placed on a square grid. Each tile maybe joined diagonally to its neighbors, creating the jigsaw pieces. The jigsaw is procedurally generated (using a computer <span id="p796"><span id="p1540">algorithm</span></span>), which internally uses a pseudorandom number generator to drive the process. These are the adjustable parameters:</p>
+   <ul>
+   <li><strong>Seed: </strong>It's the starting value for the deterministic, pseudorandom number <span id="p1541">generator </span>used in the generation process. Seed value, grid dimensions (columns and rows) and piece tile count limits (min and max piece size) define unique jigsaw patterns that can be regenerated using the same input parameters. If you tick the "<strong>use non-deterministic randomness</strong>" checkbox, a non-deterministic random number generator is used instead, and a unique pattern is generated every time you press the "Generate Jigsaw" button. These patterns are truly unique and can't be regenerated ever again.</li>
+   <li><strong>Columns and rows:&nbsp;</strong>The jigsaw tile grid dimensions. The larger the jigsaw, the longer it takes to generate.</li>
+   <li><strong>Tile radius:</strong> The actual, physical radius of the jigsaw tiles, in millimeters. In octagonal tile mode, it's the radius of the circle inscribing the octagon tiles.</li>
+   <li><strong>Frame size:</strong> Extra frame width surrounding the jigsaw.</li>
+   <li><strong>Frame corner radius:</strong> The radius of the frame corners.</li>
+   <li><strong>Minimum and maximum piece size:</strong> Minimum and maximum number of tiles allowed per piece. Minimum piece size will always be honored, while the maximum size may be overshot by some tiles because of how the generation algorithm works.</li>
+   </ul>
+   <p>You may export the jigsaw to SVG in several ways:</p>
+   <ul>
+   <li><strong>Colored SVG:</strong> Export the jigsaw with colored pieces. Great to use for box covers or as the jigsaw solution. If you use non-deterministic randomness mode, <a href="https://rgbcolorcode.com/">the colors of</a> the exported SVG will be different from those shown in the jigsaw preview.</li>
+   <li><strong>Individual pieces with overlap:</strong> Export the pieces as overlapping closed paths. This can't be lasercut straight away, but it can be used for cutting individual pieces (for replacements or to cut them in a milling machine)</li>
+   <li><strong>Non-overlapping:</strong> Vectors are exported with no overlap. It can be lasercut straight away.</li>
+   <li><strong>Non-overlapping, single path:</strong> Vectors are exported with no overlap, but the SVG is composed of a single path instead of multiple paths. Apparently this way it works better with Trotec machines for some reason.</li>
+   </ul>
+   <h2>Tips and tricks</h2>
+   <h4>Single piece mode</h4>
+   <p>If you set the minimum and maximum piece size to exactly half the number of tiles in the grid, it will generate a single piece jigsaw with a very interesting texture that some people are using for lampshades and such. </p>
+   <p>For example, if your grid is 50 columns by 30 rows (50x30 =1500 tiles in total), set the minimum and maximum piece size to 1500/2 = 750 tiles for single piece mode</p>
+   <h4>Trotec machines software tip</h4>
+   <p>Apparently, Trotec machines have some issues with the SVGs generated by this generator and may crash or fail while cutting. Trotec software optimizes vectors by default converting everything to bezier curves before generating the laser cutting toolpath. These puzzles are made entirely of circular arcs (a rare edge case), which are hard to approximate with bezier curves. </p>
+   <p>You have to disable this optimization to cut these jigsaws. There's an option in their JobControl software to disable it, but I don't know how to do it as I don't own a Trotec machine, so please contact Trotec for help.</p>
 </body>
 
 </html>
