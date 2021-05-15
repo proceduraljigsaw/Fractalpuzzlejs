@@ -812,12 +812,14 @@
       It creates jigsaws with a pattern that resembles the "inner" part of a space-filling fractal <a
          href="https://en.wikipedia.org/wiki/Dragon_curve">dragon curve</a>, although no fractal geometry is involved in
       the generation process. Additionally, I've found that some people like the texture it generates in single-piece
-      moe (see below) and use it for lamp shades and such.</p>
+      mode (see below) and use it for lamp shades and such. This runs entirely on your computer (via your browser) and has no external library
+      dependency, it's fully self-contained. You need a relatively modern browser for this to work. It has been tested on current versions (mid 2021)
+      of Chrome, Firefox and Edge.</p>
    <p>These jigsaws are meant for laser-cutting.</p>
    <p>This is open-source software. Check the github repo <a
          href="https://github.com/proceduraljigsaw/Fractalpuzzlejs">here</a>.</p>
    <h2>How to use?</h2>
-   <p>The jigsaw starts with tiles placed on a square grid. Each tile maybe joined diagonally to its neighbors, creating
+   <p>The jigsaw starts with tiles placed on a square grid. Each tile may be joined diagonally to its neighbors, creating
       the jigsaw pieces. The jigsaw is procedurally generated (using a computer algorithm), which internally uses a pseudorandom number generator to drive the
       process. These are the adjustable parameters:</p>
    <ul>
@@ -865,6 +867,11 @@
       approximate with bezier curves. </p>
    <p>You have to disable this optimization to cut these jigsaws. There's an option in their JobControl software to
       disable it, but I don't know how to do it as I don't own a Trotec machine, so please contact Trotec for help.</p>
+   <h4>Offline use</h4>
+   <p>As this is fully self-contained, you may download the website's html (for most browsers by right-clicking on the website and selecting
+      "Save As...") and just run it offline by opening the saved HTML with your browser. It doesn't need an Internet connection for 
+      anything as it has all the code embedded within the HTML.</p>
+
 </body>
 
 </html>
