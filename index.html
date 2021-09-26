@@ -11,6 +11,7 @@
       var ncols, nrows, rad, frame, framecorner, minp, maxp, coloring_seed = 1;
       var arc_shape = 0;
       var jig;
+      var customborder = {};
       function random() {
          if ($("ndr").checked) {
             return Math.random();
@@ -30,6 +31,112 @@
       function update_ncols() { var val = parseInt($("_ncols").value); if (!isNaN(val)) { $("ncols").value = val; } updatencols(); }
       function update_nrows() { var val = parseInt($("_nrows").value); if (!isNaN(val)) { $("nrows").value = val; } updatenrows(); }
 
+      class Line {
+         constructor(p1, p2) {
+            this.p1 = p1;
+            this.p2 = p2;
+            this.points = [p1, p2];
+            this.type = 'L';
+         }
+         pts() {
+            return this.points;
+         }
+         stype() {
+            return this.type;
+         }
+         svg(offset) {
+            return "L " + (this.p2.x + offset)+ " " + (this.p2.y + offset)+ " ";
+         }
+         plot(scale) {
+            var coordinatesArray = [];
+            // Translate coordinates
+            var x1 = Math.round(this.p1.x / scale);
+            var y1 = Math.round(this.p1.y / scale);
+            var x2 = Math.round(this.p2.x / scale);
+            var y2 = Math.round(this.p2.y / scale);
+            // Define differences and error check
+            var dx = Math.abs(x2 - x1);
+            var dy = Math.abs(y2 - y1);
+            var sx = (x1 < x2) ? 1 : -1;
+            var sy = (y1 < y2) ? 1 : -1;
+            var err = dx - dy;
+            // Set first coordinates
+            coordinatesArray.push({ x: x1, y: y1 });
+            // Main loop
+            while (!((x1 == x2) && (y1 == y2))) {
+               var e2 = err << 1;
+               if (e2 > -dy) {
+                  err -= dy;
+                  x1 += sx;
+               }
+               if (e2 < dx) {
+                  err += dx;
+                  y1 += sy;
+               }
+               // Set coordinates
+               coordinatesArray.push({ x: x1, y: y1 });
+            }
+            // Return the result
+            return coordinatesArray;
+         }
+
+      }
+      function factorial(n) {
+         if (n < 0)
+            return (-1); /*Wrong value*/
+         if (n == 0)
+            return (1);  /*Terminating condition*/
+         else {
+            return (n * factorial(n - 1));
+         }
+      }
+
+      function nCr(n, r) {
+         return (factorial(n) / (factorial(r) * factorial(n - r)));
+      }
+      class Bezier {
+         constructor(points) {
+            this.points = points;
+            this.type = (this.points.length == 4) ? 'C' : 'Q';
+         }
+         stype() {
+            return this.type;
+         }
+         pts() {
+            return this.points;
+         }
+
+
+         svg(offset) {
+            if (this.points.length == 4) {
+               return "C " + ((this.points[1].x + offset)) + " " + (this.points[1].y + offset)+ ", " + (this.points[2].x + offset)+ " " + (this.points[2].y + offset)+ ", " + (this.points[3].x + offset)+ " " + (this.points[3].y + offset)+ " ";
+            }
+            if (this.points.length == 3) {
+               return "Q " + (this.points[1].x + offset)+ " " + (this.points[1].y + offset)+ ", " + (this.points[2].x + offset)+ " " + (this.points[2].y + offset)+ " ";
+            }
+         }
+         plot(scale) {
+            let n = this.points.length;
+            let curvepoints = [];
+            for (let u = 0; u <= 1; u += 0.001) {
+               let p = { x: 0, y: 0 };
+
+               for (let i = 0; i < n; i++) {
+                  let B = nCr(n - 1, i) * Math.pow((1 - u), (n - 1) - i) * Math.pow(u, i);
+                  let px = this.points[i].x * B;
+                  let py = this.points[i].y * B;
+
+                  p.x += px;
+                  p.y += py;
+
+               }
+               p.x = Math.round(p.x / scale);
+               p.y = Math.round(p.y / scale);
+               curvepoints.push(p);
+            }
+            return curvepoints;
+         }
+      }
       class Tile {
          constructor(x, y) {
             this._x = x;
@@ -296,15 +403,110 @@
          }
       }
       class CircleFractalJigsaw {
-         constructor(ncols, nrows, minpiecelen, maxpiecelen) {
+         constructor(ncols, nrows, minpiecelen, maxpiecelen, border, crad) {
+            let Array2D = (row, col) => [...Array(row)].map(x => Array(col).fill(0));
+
+            if (border.paths) {
+               ncols = Math.ceil(border.width / (2 * crad)) + 1;
+               nrows = Math.ceil(border.height / (2 * crad)) + 1;
+            }
             this.ncols = ncols;
             this.nrows = nrows;
+            this.maskgrid = Array2D(nrows, ncols);
             this.grid = new CellGrid(ncols, nrows)
+            if (border.paths) {
+               this.fillmask(border.paths, crad);
+               for (var i = 0; i < nrows; i++) {
+                  for (var j = 0; j < ncols; j++) {
+                     if (this.maskgrid[i][j]) {
+                        this.grid.visittile({ x: j, y: i });
+                     }
+                  }
+               }
+            }
             this.pieces = [];
             this.maxpiecelen = maxpiecelen;
             this.minpiecelen = minpiecelen;
+
          }
 
+         fillmask(paths, crad) {
+            const crosslookup = [[-1, 0], [1, 0], [0, 1], [0, -1]];
+            var dia = 2 * crad;
+            var allpts = []
+            var minx, miny, maxx, maxy
+            paths.forEach((p) => {
+               p.forEach((seg) => {
+                  var pts = seg.plot(dia);
+                  pts.forEach((pt) => {
+                     allpts.push(pt);
+                     if (isNaN(minx) || pt.x < minx) minx = pt.x;
+                     if (isNaN(miny) || pt.y < miny) miny = pt.y;
+                     if (isNaN(maxx) || pt.x > maxx) maxx = pt.x;
+                     if (isNaN(maxy) || pt.y > maxy) maxy = pt.y;
+
+                  });
+               });
+
+            });
+            console.log("V", minx, maxx, miny, maxy);
+            allpts.forEach((p) => {
+
+               this.maskgrid[p.y - miny][p.x - minx] = 1;
+
+            });
+
+            var regnum = 3;
+
+            var grown;
+            do {
+               var outside = true;
+               grown = false;
+               for (var i = -1; i < this.nrows + 1; i++) {
+                  for (var j = -1; j < this.ncols + 1; j++) {
+                     if (i < 0 || j < 0 || i > this.nrows - 1 || j > this.ncols - 1 || (this.maskgrid[i][j] > 1 && this.maskgrid[i][j] < regnum)) {
+                        var togrow = [{ r: i, c: j }];
+                        do {
+                           var p = togrow.pop();
+                           crosslookup.forEach((c) => {
+                              var ii = p.r + c[0];
+                              var jj = p.c + c[1];
+                              if (ii >= 0 && jj >= 0 && ii < this.nrows && jj < this.ncols) {
+
+                                 if (!this.maskgrid[ii][jj]) {
+                                    togrow.push({ r: ii, c: jj });
+                                 }
+                                 if (this.maskgrid[ii][jj] < 2) {
+                                    if (p.r > 0 && p.c > 0 && p.r < this.nrows && p.c < this.ncols) {
+                                       if (this.maskgrid[p.r][p.c] > 1 && this.maskgrid[p.r][p.c] < regnum && this.maskgrid[p.r][p.c] % 2) {
+                                          this.outside = false;
+                                       }
+                                    } else {
+                                       this.outside = true;
+                                    }
+                                    this.maskgrid[ii][jj] = regnum;
+                                    grown = true;
+                                 }
+                              }
+                           });
+                        } while (togrow.length);
+
+                     }
+                  }
+
+               }
+               regnum += outside ? 1 : 2;
+            } while (grown)
+
+            for (var i = 0; i < this.nrows; i++) {
+               for (var j = 0; j < this.ncols; j++) {
+                  this.maskgrid[i][j] = this.maskgrid[i][j] % 2;
+               }
+            }
+            allpts.forEach((p) => {
+               this.maskgrid[p.y - miny][p.x - minx] = 1;
+            });
+         }
 
          possibleconnections(mytiles, allowpartials) {
             var pcs = [];
@@ -314,7 +516,7 @@
                   v.hasconnections = false;
                   neighbors.forEach((n) => {
                      let cpt = new Tile(v.x + n[0], v.y + n[1]);
-                     if (this.grid.istilevalid(cpt) && !mytiles.find(nv => nv.eq(cpt))) {
+                     if (this.grid.istilevalid(cpt) && !this.maskgrid[cpt.y][cpt.x] && !mytiles.find(nv => nv.eq(cpt))) {
                         let dc = new DiagonalConnection(v, cpt, !this.grid.istilevisited(cpt));
                         if (this.grid.iscellempty(dc.cell)) {
                            if (allowpartials || !this.grid.istilevisited(cpt)) {
@@ -389,20 +591,20 @@
          }
 
 
-         static addarcs(con, connections, arcs, rad, border, first) {
+         static addarcs(con, connections, arcs, rad, frame, first) {
             var newarc;
             switch (con.quad) {
                case 0:
-                  newarc = new Arc(new Tile(con.p1.x + 1, con.p1.y), rad, border, 1, 1);
+                  newarc = new Arc(new Tile(con.p1.x + 1, con.p1.y), rad, frame, 1, 1);
                   break;
                case 1:
-                  newarc = new Arc(new Tile(con.p1.x, con.p1.y - 1), rad, border, 2, 1);
+                  newarc = new Arc(new Tile(con.p1.x, con.p1.y - 1), rad, frame, 2, 1);
                   break;
                case 2:
-                  newarc = new Arc(new Tile(con.p1.x - 1, con.p1.y), rad, border, 3, 1);
+                  newarc = new Arc(new Tile(con.p1.x - 1, con.p1.y), rad, frame, 3, 1);
                   break;
                case 3:
-                  newarc = new Arc(new Tile(con.p1.x, con.p1.y + 1), rad, border, 0, 1);
+                  newarc = new Arc(new Tile(con.p1.x, con.p1.y + 1), rad, frame, 0, 1);
                   break;
             }
             arcs.push(newarc);
@@ -412,30 +614,30 @@
                   var pct = DiagonalConnection.FromPointAndQuad(con.p2, q, true);
                   var pcnt = DiagonalConnection.FromPointAndQuad(con.p2, q, false);
                   if (connections.find(c => c.eq(pct))) {
-                     CircleFractalJigsaw.addarcs(pct, connections, arcs, rad, border, false);
+                     CircleFractalJigsaw.addarcs(pct, connections, arcs, rad, frame, false);
                   } else if (connections.find(c => c.eq(pcnt))) {
-                     CircleFractalJigsaw.addarcs(pcnt, connections, arcs, rad, border, false);
+                     CircleFractalJigsaw.addarcs(pcnt, connections, arcs, rad, frame, false);
                   } else {
-                     arcs.push(new Arc(con.p2, rad, border, q, 0));
+                     arcs.push(new Arc(con.p2, rad, frame, q, 0));
                   }
                });
             } else {
-               arcs.push(new Arc(con.p2, rad, border, (con.quad + 2) % 4, 1));
+               arcs.push(new Arc(con.p2, rad, frame, (con.quad + 2) % 4, 1));
             }
 
             switch (con.quad) {
 
                case 0:
-                  newarc = new Arc(new Tile(con.p1.x, con.p1.y - 1), rad, border, 3, 1);
+                  newarc = new Arc(new Tile(con.p1.x, con.p1.y - 1), rad, frame, 3, 1);
                   break;
                case 1:
-                  newarc = new Arc(new Tile(con.p1.x - 1, con.p1.y), rad, border, 0, 1);
+                  newarc = new Arc(new Tile(con.p1.x - 1, con.p1.y), rad, frame, 0, 1);
                   break;
                case 2:
-                  newarc = new Arc(new Tile(con.p1.x, con.p1.y + 1), rad, border, 1, 1);
+                  newarc = new Arc(new Tile(con.p1.x, con.p1.y + 1), rad, frame, 1, 1);
                   break;
                case 3:
-                  newarc = new Arc(new Tile(con.p1.x + 1, con.p1.y), rad, border, 2, 1);
+                  newarc = new Arc(new Tile(con.p1.x + 1, con.p1.y), rad, frame, 2, 1);
                   break;
             }
             arcs.push(newarc);
@@ -446,26 +648,26 @@
                   var pct = DiagonalConnection.FromPointAndQuad(con.p1, q, true);
                   var pcnt = DiagonalConnection.FromPointAndQuad(con.p1, q, false);
                   if (connections.find(c => c.eq(pct))) {
-                     CircleFractalJigsaw.addarcs(pct, connections, arcs, rad, border, false);
+                     CircleFractalJigsaw.addarcs(pct, connections, arcs, rad, frame, false);
                   } else if (connections.find(c => c.eq(pcnt))) {
-                     CircleFractalJigsaw.addarcs(pcnt, connections, arcs, rad, border, false);
+                     CircleFractalJigsaw.addarcs(pcnt, connections, arcs, rad, frame, false);
                   } else {
-                     arcs.push(new Arc(con.p1, rad, border, q, 0));
+                     arcs.push(new Arc(con.p1, rad, frame, q, 0));
                   }
                });
             }
 
          }
 
-         exportsvg(border, crad, arcshape) {
-            var width = this.ncols * 2 * crad + 2 * border;
-            var height = this.nrows * 2 * crad + 2 * border;
+         exportsvg(frame, crad, arcshape) {
+            var width = this.ncols * 2 * crad + 2 * frame;
+            var height = this.nrows * 2 * crad + 2 * frame;
 
             var data = "<?xml version=\"1.0\" encoding=\"utf-8\" ?><svg baseProfile=\"full\" height=\"" + height + "mm\" version=\"1.1\" viewBox=\"0 0 " + width + " " + height + "\" width=\"" + width + "mm\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:ev=\"http://www.w3.org/2001/xml-events\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"><defs />"
 
             this.pieces.forEach((p) => {
                var arcs = [];
-               CircleFractalJigsaw.addarcs(p[0], p, arcs, crad, border, true);
+               CircleFractalJigsaw.addarcs(p[0], p, arcs, crad, frame, true);
                data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"M" + arcs[0].sp.x + "," + arcs[0].sp.y + " ";
                arcs.forEach((a) => {
                   data += a.svg(arcshape);
@@ -476,16 +678,16 @@
             data += "</svg>";
             return data;
          }
-         exportsvg_nooverlap_singlepath(border, crad, arcshape) {
-            var width = this.ncols * 2 * crad + 2 * border;
-            var height = this.nrows * 2 * crad + 2 * border;
+         exportsvg_nooverlap_singlepath(frame, crad, arcshape) {
+            var width = this.ncols * 2 * crad + 2 * frame;
+            var height = this.nrows * 2 * crad + 2 * frame;
             var data = "<?xml version=\"1.0\" encoding=\"utf-8\" ?><svg baseProfile=\"full\" height=\"" + height + "mm\" version=\"1.1\" viewBox=\"0 0 " + width + " " + height + "\" width=\"" + width + "mm\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:ev=\"http://www.w3.org/2001/xml-events\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"><defs />"
             var allarcs = [];
             data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"";
             var currentlocation = new Tile(-1, -1);
             this.pieces.forEach((p) => {
                var arcs = [];
-               CircleFractalJigsaw.addarcs(p[0], p, arcs, crad, border, true);
+               CircleFractalJigsaw.addarcs(p[0], p, arcs, crad, frame, true);
                arcs.forEach((a) => {
                   if (!allarcs.find(na => na.eq(a))) {
                      allarcs.push(a);
@@ -503,16 +705,16 @@
             return data;
          }
 
-         exportsvg_nooverlap(border, crad, arcshape) {
-            var width = this.ncols * 2 * crad + 2 * border;
-            var height = this.nrows * 2 * crad + 2 * border;
+         exportsvg_nooverlap(frame, crad, arcshape) {
+            var width = this.ncols * 2 * crad + 2 * frame;
+            var height = this.nrows * 2 * crad + 2 * frame;
             var data = "<?xml version=\"1.0\" encoding=\"utf-8\" ?><svg baseProfile=\"full\" height=\"" + height + "mm\" version=\"1.1\" viewBox=\"0 0 " + width + " " + height + "\" width=\"" + width + "mm\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:ev=\"http://www.w3.org/2001/xml-events\" xmlns:xlink=\"http://www.w3.org/1999/xlink\"><defs />"
             var allarcs = [];
             var path = "";
             this.pieces.forEach((p) => {
                var inpath = false;
                var arcs = [];
-               CircleFractalJigsaw.addarcs(p[0], p, arcs, crad, border, true);
+               CircleFractalJigsaw.addarcs(p[0], p, arcs, crad, frame, true);
                arcs.forEach((a) => {
                   if (allarcs.find(na => na.eq(a))) {
                      if (inpath) {
@@ -554,13 +756,13 @@
             return data;
          }
 
-         multipaths(border, crad, arcshape) {
+         multipaths(frame, crad, arcshape) {
             var paths = [];
             var data = "";
             this.pieces.forEach((p) => {
                var data = ""
                var arcs = [];
-               CircleFractalJigsaw.addarcs(p[0], p, arcs, crad, border, true);
+               CircleFractalJigsaw.addarcs(p[0], p, arcs, crad, frame, true);
                data += "M" + arcs[0].sp.x + "," + arcs[0].sp.y + " ";
                arcs.forEach((a) => {
                   data += a.svg(arcshape);
@@ -581,6 +783,14 @@
          }
          regenerategrid() {
             this.grid.reset()
+
+            for (var i = 0; i < this.nrows; i++) {
+               for (var j = 0; j < this.ncols; j++) {
+                  if (this.maskgrid[i][j]) {
+                     this.grid.occupycell({ x: j, y: i });
+                  }
+               }
+            }
             var np = 1;
             this.pieces.forEach((p) => {
                p.forEach((c) => {
@@ -685,8 +895,12 @@
 
       function generate() {
          parse_input();
-         jig = new CircleFractalJigsaw(ncols, nrows, minp, maxp);
-
+         if(customborder.paths){
+            frame=0;
+         }
+         jig = new CircleFractalJigsaw(ncols, nrows, minp, maxp, customborder, rad);
+         nrows = jig.nrows;
+         ncols = jig.ncols;
          jig.generate();
          while (jig.fillholes(false));
          jig.fillholes(true);
@@ -714,13 +928,206 @@
             newpath.setAttribute("fill", "#" + Math.floor(uniform(0, 16777216)).toString(16));
             $("puzzlecontainer").appendChild(newpath);
          });
-         var framedraw = document.createElementNS($("puzzlecontainer").namespaceURI, "path")
-         framedraw.setAttribute("d", createframe());
-         framedraw.setAttribute("stroke", "black");
-         framedraw.setAttribute("fill", "none");
-         framedraw.setAttribute("stroke-width", 0.5);
-         $("puzzlecontainer").appendChild(framedraw);
+         if (customborder.paths) {
+            customborder.paths.forEach((p) => {
+               var svgpathd = "M " + (p[0].pts()[0].x+rad)  + ", " + (p[0].pts()[0].y+rad) + " "
+               p.forEach((seg) => {
+                  svgpathd += seg.svg(rad);
+               });
+               var framedraw = document.createElementNS($("puzzlecontainer").namespaceURI, "path")
+               framedraw.setAttribute("d", svgpathd);
+               framedraw.setAttribute("stroke", "black");
+               framedraw.setAttribute("fill", "none");
+               framedraw.setAttribute("stroke-width", 0.5);
+               $("puzzlecontainer").appendChild(framedraw);
+            });
+         } //else {
+            var framedraw = document.createElementNS($("puzzlecontainer").namespaceURI, "path")
+            framedraw.setAttribute("d", createframe());
+            framedraw.setAttribute("stroke", "black");
+            framedraw.setAttribute("fill", "none");
+            framedraw.setAttribute("stroke-width", 0.5);
+            $("puzzlecontainer").appendChild(framedraw);
+            
+            for(var i=0; i< jig.nrows;i++){
+               for (var j =0; j<jig.ncols;j++){
+                  if(jig.maskgrid[i][j]){
+                     var framedraw = document.createElementNS($("puzzlecontainer").namespaceURI, "circle")
+            framedraw.setAttribute("cx", rad+2*rad*j);
+            framedraw.setAttribute("cy",  rad+2*rad*i);
+            framedraw.setAttribute("r",  rad);
+
+            framedraw.setAttribute("fill", "red");
+            framedraw.setAttribute("opacity",0.2);
+            $("puzzlecontainer").appendChild(framedraw);
+            
+                  }else{
+                     var framedraw = document.createElementNS($("puzzlecontainer").namespaceURI, "circle")
+            framedraw.setAttribute("cx", rad+2*rad*j);
+            framedraw.setAttribute("cy",  rad+2*rad*i);
+            framedraw.setAttribute("r",  rad);
+
+            framedraw.setAttribute("fill", "green");
+            framedraw.setAttribute("opacity",0.2);
+            $("puzzlecontainer").appendChild(framedraw);
+                  }
+               }
+            }
+        // }
          $("piececount").innerHTML = jig.npieces();
+
+      }
+
+      function loadborder() {
+         var borderfile = $("borderfile");
+         var fr = new FileReader();
+         fr.readAsText(borderfile.files[0]);
+         fr.onloadend = function () {
+            //console.log(fr.result);
+            var parser = new DOMParser();
+            var xmldoc = parser.parseFromString(fr.result, "text/xml");
+            var viewBox = xmldoc.getElementsByTagName("svg")[0];
+            if (xmldoc.getElementsByTagName("svg")[0].width.baseVal.unitType == 2) {
+               var width = Math.ceil(xmldoc.getElementsByTagName("svg")[0].width.baseVal.value);
+               var height = Math.ceil(xmldoc.getElementsByTagName("svg")[0].height.baseVal.value);
+            } else {
+               var width = Math.ceil(xmldoc.getElementsByTagName("svg")[0].width.baseVal.valueInSpecifiedUnits);
+               var height = Math.ceil(xmldoc.getElementsByTagName("svg")[0].height.baseVal.valueInSpecifiedUnits);
+            }
+
+            customborder.width = width;
+            customborder.height = height;
+            var paths_svg = xmldoc.getElementsByTagName("path");
+            var g = xmldoc.getElementsByTagName("g");
+            var xinit = 0, yinit = 0;
+            if (g.length) {
+               if (g[0].transform.baseVal.length) {
+                  xinit = g[0].transform.baseVal[0].matrix.e;
+                  yinit = g[0].transform.baseVal[0].matrix.f;
+               }
+            }
+            var paths = [];
+            for (let p of paths_svg) {
+               var path = [];
+               var current_pos = { x: xinit, y: yinit };
+               for (let sl of p.animatedPathSegList) {
+                  switch (sl.pathSegTypeAsLetter) {
+                     case 'z':
+                     case 'Z':
+                        if (path.length) {
+                           var l = new Line({ x: current_pos.x, y: current_pos.y }, path[0].pts()[0]);
+                        }
+                        break;
+                     case 'h':
+                     case 'v':
+                     case 'l':
+                        var dx = 0;
+                        var dy = 0;
+                        if (sl.x) {
+                           dx = sl.x;
+                        }
+                        if (sl.y) {
+                           dy = sl.y;
+                        }
+                        var l = new Line({ x: current_pos.x, y: current_pos.y }, { x: current_pos.x + dx, y: current_pos.y + dy })
+                        current_pos.x += dx;
+                        current_pos.y += dy;
+                        path.push(l);
+                        break;
+                     case 'H':
+                     case 'V':
+                     case 'L':
+                        var nx = current_pos.x;
+                        var ny = current_pos.y;
+                        if (sl.x) {
+                           nx = sl.x;
+                        }
+                        if (sl.y) {
+                           ny = sl.y;
+                        }
+                        var l = new Line({ x: current_pos.x, y: current_pos.y }, { x: nx, y: ny })
+                        current_pos.x = nx;
+                        current_pos.y = ny;
+                        path.push(l);
+                        break;
+                     case 'm':
+                        current_pos.x += sl.x;
+                        current_pos.y += sl.y;
+                        break;
+                     case 'M':
+                        current_pos.x = sl.x;
+                        current_pos.y = sl.y;
+                        break;
+                     case 't':
+                        if (path.length && path[path.length - 1].stype() == 'Q') {
+                           var lastpath = path[path.length - 1];
+                           sl.x1 = lastpath.pts()[2].x - lastpath.pts()[1].x;
+                           sl.y1 = lastpath.pts()[2].y - lastpath.pts()[1].y;
+                        } else {
+                           sl.x1 = 0;
+                           sl.y1 = 0;
+                        }
+                     case 'q':
+                        var bz = new Bezier([{ x: current_pos.x, y: current_pos.y }, { x: sl.x1 + current_pos.x, y: sl.y1 + current_pos.y }, { x: sl.x + current_pos.x, y: sl.y + current_pos.y }]);
+                        current_pos.x += sl.x;
+                        current_pos.y += sl.y;
+                        path.push(bz);
+                        break;
+                     case 'T':
+                        if (path.length && path[path.length - 1].stype() == 'Q') {
+                           var lastpath = path[path.length - 1];
+                           sl.x1 = 2 * lastpath.pts()[2].x - lastpath.pts()[1].x;
+                           sl.y1 = 2 * lastpath.pts()[2].y - lastpath.pts()[1].y;
+                        } else {
+                           sl.x1 = current_pos.x;
+                           sl.y1 = current_pos.y;
+                        }
+                     case 'Q':
+                        var bz = new Bezier([{ x: current_pos.x, y: current_pos.y }, { x: sl.x1, y: sl.y1 }, { x: sl.x, y: sl.y }]);
+                        current_pos.x = sl.x;
+                        current_pos.y = sl.y;
+                        path.push(bz);
+                        break;
+                     case 's':
+                        if (path.length && path[path.length - 1].stype() == 'C') {
+                           var lastpath = path[path.length - 1];
+                           sl.x1 = lastpath.pts()[3].x - lastpath.pts()[2].x;
+                           sl.y1 = lastpath.pts()[3].y - lastpath.pts()[2].y;
+                        } else {
+                           sl.x1 = 0;
+                           sl.y1 = 0;
+                        }
+                     case 'c':
+                        var bz = new Bezier([{ x: current_pos.x, y: current_pos.y }, { x: sl.x1 + current_pos.x, y: sl.y1 + current_pos.y }, { x: sl.x2 + current_pos.x, y: sl.y2 + current_pos.y }, { x: sl.x + current_pos.x, y: sl.y + current_pos.y }]);
+                        current_pos.x += sl.x;
+                        current_pos.y += sl.y;
+                        path.push(bz);
+                        break;
+                     case 'S':
+                        if (path.length && path[path.length - 1].stype() == 'C') {
+                           var lastpath = path[path.length - 1];
+                           sl.x1 = 2 * lastpath.pts()[3].x - lastpath.pts()[2].x;
+                           sl.y1 = 2 * lastpath.pts()[3].y - lastpath.pts()[2].y;
+                        } else {
+                           sl.x1 = current_pos.x;
+                           sl.y1 = current_pos.y;
+                        }
+                     case 'C':
+                        var bz = new Bezier([{ x: current_pos.x, y: current_pos.y }, { x: sl.x1, y: sl.y1 }, { x: sl.x2, y: sl.y2 }, { x: sl.x, y: sl.y }]);
+                        current_pos.x = sl.x;
+                        current_pos.y = sl.y;
+                        path.push(bz);
+                        break;
+                     default:
+                        console.log("Dunno what to do with ", sl.pathSegTypeAsLetter);
+                        break;
+                  }
+               };
+               paths.push(path);
+            };
+            customborder.paths = paths;
+
+         };
       }
    </script>
 </head>
@@ -787,6 +1194,12 @@
          <td>Jigsaw size: <label id="width">w</label> x <label id="height">h</label> mm</td>
       </tr>
 
+      </tr>
+      <td>
+         <input type="file" id="borderfile" accept=".svg">
+         <button onclick="loadborder()">Load SVG border</button>
+      </td>
+      </tr>
       <tr>
          <td><button onclick="generate()">Generate Jigsaw</button></td>
       </tr>
@@ -812,18 +1225,23 @@
       It creates jigsaws with a pattern that resembles the "inner" part of a space-filling fractal <a
          href="https://en.wikipedia.org/wiki/Dragon_curve">dragon curve</a>, although no fractal geometry is involved in
       the generation process. Additionally, I've found that some people like the texture it generates in single-piece
-      mode (see below) and use it for lamp shades and such. This runs entirely on your computer (via your browser) and has no external library
-      dependency, it's fully self-contained. You need a relatively modern browser for this to work. It has been tested on current versions (mid 2021)
+      mode (see below) and use it for lamp shades and such. This runs entirely on your computer (via your browser) and
+      has no external library
+      dependency, it's fully self-contained. You need a relatively modern browser for this to work. It has been tested
+      on current versions (mid 2021)
       of Chrome, Firefox and Edge.</p>
    <p>These jigsaws are meant for laser-cutting.</p>
    <p>This is open-source software. Check the github repo <a
          href="https://github.com/proceduraljigsaw/Fractalpuzzlejs">here</a>.</p>
    <h2>How to use?</h2>
-   <p>The jigsaw starts with tiles placed on a square grid. Each tile may be joined diagonally to its neighbors, creating
-      the jigsaw pieces. The jigsaw is procedurally generated (using a computer algorithm), which internally uses a pseudorandom number generator to drive the
+   <p>The jigsaw starts with tiles placed on a square grid. Each tile may be joined diagonally to its neighbors,
+      creating
+      the jigsaw pieces. The jigsaw is procedurally generated (using a computer algorithm), which internally uses a
+      pseudorandom number generator to drive the
       process. These are the adjustable parameters:</p>
    <ul>
-      <li><strong>Seed: </strong>It's the starting value for the deterministic, pseudorandom number generator used in the generation process. Seed value, grid dimensions (columns and rows)
+      <li><strong>Seed: </strong>It's the starting value for the deterministic, pseudorandom number generator used in
+         the generation process. Seed value, grid dimensions (columns and rows)
          and piece tile count limits (min and max piece size) define unique jigsaw patterns that can be regenerated
          using the same input parameters. If you tick the "<strong>use non-deterministic randomness</strong>" checkbox,
          a non-deterministic random number generator is used instead, and a unique pattern is generated every time you
@@ -868,8 +1286,10 @@
    <p>You have to disable this optimization to cut these jigsaws. There's an option in their JobControl software to
       disable it, but I don't know how to do it as I don't own a Trotec machine, so please contact Trotec for help.</p>
    <h4>Offline use</h4>
-   <p>As this is fully self-contained, you may download the website's html (for most browsers by right-clicking on the website and selecting
-      "Save As...") and just run it offline by opening the saved HTML with your browser. It doesn't need an Internet connection for 
+   <p>As this is fully self-contained, you may download the website's html (for most browsers by right-clicking on the
+      website and selecting
+      "Save As...") and just run it offline by opening the saved HTML with your browser. It doesn't need an Internet
+      connection for
       anything as it has all the code embedded within the HTML.</p>
 
 </body>
