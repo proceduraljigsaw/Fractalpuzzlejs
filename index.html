@@ -31,56 +31,7 @@
       function update_ncols() { var val = parseInt($("_ncols").value); if (!isNaN(val)) { $("ncols").value = val; } updatencols(); }
       function update_nrows() { var val = parseInt($("_nrows").value); if (!isNaN(val)) { $("nrows").value = val; } updatenrows(); }
 
-      class Line {
-         constructor(p1, p2) {
-            this.p1 = p1;
-            this.p2 = p2;
-            this.points = [p1, p2];
-            this.type = 'L';
-         }
-         pts() {
-            return this.points;
-         }
-         stype() {
-            return this.type;
-         }
-         svg(offset) {
-            return "L " + (this.p2.x + offset)+ " " + (this.p2.y + offset)+ " ";
-         }
-         plot(scale) {
-            var coordinatesArray = [];
-            // Translate coordinates
-            var x1 = Math.round(this.p1.x / scale);
-            var y1 = Math.round(this.p1.y / scale);
-            var x2 = Math.round(this.p2.x / scale);
-            var y2 = Math.round(this.p2.y / scale);
-            // Define differences and error check
-            var dx = Math.abs(x2 - x1);
-            var dy = Math.abs(y2 - y1);
-            var sx = (x1 < x2) ? 1 : -1;
-            var sy = (y1 < y2) ? 1 : -1;
-            var err = dx - dy;
-            // Set first coordinates
-            coordinatesArray.push({ x: x1, y: y1 });
-            // Main loop
-            while (!((x1 == x2) && (y1 == y2))) {
-               var e2 = err << 1;
-               if (e2 > -dy) {
-                  err -= dy;
-                  x1 += sx;
-               }
-               if (e2 < dx) {
-                  err += dx;
-                  y1 += sy;
-               }
-               // Set coordinates
-               coordinatesArray.push({ x: x1, y: y1 });
-            }
-            // Return the result
-            return coordinatesArray;
-         }
-
-      }
+     
       function factorial(n) {
          if (n < 0)
             return (-1); /*Wrong value*/
@@ -97,7 +48,19 @@
       class Bezier {
          constructor(points) {
             this.points = points;
-            this.type = (this.points.length == 4) ? 'C' : 'Q';
+            switch(this.points.length){
+               case 2:
+                  this.type ='L';
+                  break;
+               case 3:
+                  this.type = 'Q';
+                  break;
+               case 4:
+                  this.type = 'C';
+                  break;
+               default:
+                  this.type ='x';
+            }
          }
          stype() {
             return this.type;
@@ -109,10 +72,13 @@
 
          svg(offset) {
             if (this.points.length == 4) {
-               return "C " + ((this.points[1].x + offset)) + " " + (this.points[1].y + offset)+ ", " + (this.points[2].x + offset)+ " " + (this.points[2].y + offset)+ ", " + (this.points[3].x + offset)+ " " + (this.points[3].y + offset)+ " ";
+               return "C " + ((this.points[1].x + offset)) + " " + (this.points[1].y + offset) + ", " + (this.points[2].x + offset) + " " + (this.points[2].y + offset) + ", " + (this.points[3].x + offset) + " " + (this.points[3].y + offset) + " ";
             }
             if (this.points.length == 3) {
-               return "Q " + (this.points[1].x + offset)+ " " + (this.points[1].y + offset)+ ", " + (this.points[2].x + offset)+ " " + (this.points[2].y + offset)+ " ";
+               return "Q " + (this.points[1].x + offset) + " " + (this.points[1].y + offset) + ", " + (this.points[2].x + offset) + " " + (this.points[2].y + offset) + " ";
+            }
+            if (this.points.length == 2) {
+               return "L " + (this.points[1].x + offset) + " " + (this.points[1].y + offset) + " ";            
             }
          }
          plot(scale) {
@@ -452,7 +418,7 @@
             console.log("V", minx, maxx, miny, maxy);
             allpts.forEach((p) => {
 
-               this.maskgrid[p.y - miny][p.x - minx] = 1;
+               this.maskgrid[p.y][p.x] = 1;
 
             });
 
@@ -504,7 +470,7 @@
                }
             }
             allpts.forEach((p) => {
-               this.maskgrid[p.y - miny][p.x - minx] = 1;
+               this.maskgrid[p.y][p.x] = 1;
             });
          }
 
@@ -674,7 +640,18 @@
                });
                data += "Z\"></path>";
             });
-            data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"" + createframe() + "\"></path>";
+            if (customborder.paths) {
+               customborder.paths.forEach((p) => {
+                  data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"";
+                  data += "M " + (p[0].pts()[0].x + rad) + ", " + (p[0].pts()[0].y + rad) + " "
+                  p.forEach((seg) => {
+                     data += seg.svg(rad);
+                  });
+                  data += "\"></path>";
+               });
+            } else {
+               data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"" + createframe() + "\"></path>";
+            }
             data += "</svg>";
             return data;
          }
@@ -700,7 +677,18 @@
                });
             });
             data += "\"></path>"
-            data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"" + createframe() + "\"></path>";
+            if (customborder.paths) {
+               customborder.paths.forEach((p) => {
+                  data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"";
+                  data += "M " + (p[0].pts()[0].x + rad) + ", " + (p[0].pts()[0].y + rad) + " "
+                  p.forEach((seg) => {
+                     data += seg.svg(rad);
+                  });
+                  data += "\"></path>";
+               });
+            } else {
+               data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"" + createframe() + "\"></path>";
+            }
             data += "</svg>";
             return data;
          }
@@ -736,7 +724,18 @@
                   data += path;
                }
             });
-            data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"" + createframe() + "\"></path>";
+            if (customborder.paths) {
+               customborder.paths.forEach((p) => {
+                  data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"";
+                  data += "M " + (p[0].pts()[0].x + rad) + ", " + (p[0].pts()[0].y + rad) + " "
+                  p.forEach((seg) => {
+                     data += seg.svg(rad);
+                  });
+                  data += "\"></path>";
+               });
+            } else {
+               data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"" + createframe() + "\"></path>";
+            }
             data += "</svg>";
             return data;
          }
@@ -751,7 +750,18 @@
                data += p
                data += "\"></path>"
             });
-            data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"" + createframe() + "\"></path>";
+            if (customborder.paths) {
+               customborder.paths.forEach((p) => {
+                  data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"";
+                  data += "M " + (p[0].pts()[0].x + rad) + ", " + (p[0].pts()[0].y + rad) + " "
+                  p.forEach((seg) => {
+                     data += seg.svg(rad);
+                  });
+                  data += "\"></path>";
+               });
+            } else {
+               data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"" + createframe() + "\"></path>";
+            }
             data += "</svg>";
             return data;
          }
@@ -895,8 +905,8 @@
 
       function generate() {
          parse_input();
-         if(customborder.paths){
-            frame=0;
+         if (customborder.paths) {
+            frame = 0;
          }
          jig = new CircleFractalJigsaw(ncols, nrows, minp, maxp, customborder, rad);
          nrows = jig.nrows;
@@ -930,7 +940,7 @@
          });
          if (customborder.paths) {
             customborder.paths.forEach((p) => {
-               var svgpathd = "M " + (p[0].pts()[0].x+rad)  + ", " + (p[0].pts()[0].y+rad) + " "
+               var svgpathd = "M " + (p[0].pts()[0].x + rad) + ", " + (p[0].pts()[0].y + rad) + " "
                p.forEach((seg) => {
                   svgpathd += seg.svg(rad);
                });
@@ -941,39 +951,39 @@
                framedraw.setAttribute("stroke-width", 0.5);
                $("puzzlecontainer").appendChild(framedraw);
             });
-         } //else {
+         } else {
             var framedraw = document.createElementNS($("puzzlecontainer").namespaceURI, "path")
             framedraw.setAttribute("d", createframe());
             framedraw.setAttribute("stroke", "black");
             framedraw.setAttribute("fill", "none");
             framedraw.setAttribute("stroke-width", 0.5);
             $("puzzlecontainer").appendChild(framedraw);
-            
-            for(var i=0; i< jig.nrows;i++){
-               for (var j =0; j<jig.ncols;j++){
-                  if(jig.maskgrid[i][j]){
+         }
+            for (var i = 0; i < jig.nrows; i++) {
+               for (var j = 0; j < jig.ncols; j++) {
+                  if (jig.maskgrid[i][j]) {
                      var framedraw = document.createElementNS($("puzzlecontainer").namespaceURI, "circle")
-            framedraw.setAttribute("cx", rad+2*rad*j);
-            framedraw.setAttribute("cy",  rad+2*rad*i);
-            framedraw.setAttribute("r",  rad);
+                     framedraw.setAttribute("cx", rad + 2 * rad * j);
+                     framedraw.setAttribute("cy", rad + 2 * rad * i);
+                     framedraw.setAttribute("r", rad);
 
-            framedraw.setAttribute("fill", "red");
-            framedraw.setAttribute("opacity",0.2);
-            $("puzzlecontainer").appendChild(framedraw);
-            
-                  }else{
+                     framedraw.setAttribute("fill", "red");
+                     framedraw.setAttribute("opacity", 0.2);
+                     $("puzzlecontainer").appendChild(framedraw);
+
+                  } else {
                      var framedraw = document.createElementNS($("puzzlecontainer").namespaceURI, "circle")
-            framedraw.setAttribute("cx", rad+2*rad*j);
-            framedraw.setAttribute("cy",  rad+2*rad*i);
-            framedraw.setAttribute("r",  rad);
+                     framedraw.setAttribute("cx", rad + 2 * rad * j);
+                     framedraw.setAttribute("cy", rad + 2 * rad * i);
+                     framedraw.setAttribute("r", rad);
 
-            framedraw.setAttribute("fill", "green");
-            framedraw.setAttribute("opacity",0.2);
-            $("puzzlecontainer").appendChild(framedraw);
+                     framedraw.setAttribute("fill", "green");
+                     framedraw.setAttribute("opacity", 0.2);
+                     $("puzzlecontainer").appendChild(framedraw);
                   }
                }
             }
-        // }
+         
          $("piececount").innerHTML = jig.npieces();
 
       }
@@ -1015,7 +1025,8 @@
                      case 'z':
                      case 'Z':
                         if (path.length) {
-                           var l = new Line({ x: current_pos.x, y: current_pos.y }, path[0].pts()[0]);
+                           var l = new Bezier([{ x: current_pos.x, y: current_pos.y }, path[0].pts()[0]]);
+                           path.push(l);
                         }
                         break;
                      case 'h':
@@ -1029,7 +1040,7 @@
                         if (sl.y) {
                            dy = sl.y;
                         }
-                        var l = new Line({ x: current_pos.x, y: current_pos.y }, { x: current_pos.x + dx, y: current_pos.y + dy })
+                        var l = new Bezier([{ x: current_pos.x, y: current_pos.y }, { x: current_pos.x + dx, y: current_pos.y + dy }]);
                         current_pos.x += dx;
                         current_pos.y += dy;
                         path.push(l);
@@ -1040,12 +1051,12 @@
                         var nx = current_pos.x;
                         var ny = current_pos.y;
                         if (sl.x) {
-                           nx = sl.x;
+                           nx = sl.x + xinit;
                         }
                         if (sl.y) {
-                           ny = sl.y;
+                           ny = sl.y + yinit;
                         }
-                        var l = new Line({ x: current_pos.x, y: current_pos.y }, { x: nx, y: ny })
+                        var l = new Bezier([{ x: current_pos.x, y: current_pos.y }, { x: nx, y: ny }]);
                         current_pos.x = nx;
                         current_pos.y = ny;
                         path.push(l);
@@ -1055,8 +1066,8 @@
                         current_pos.y += sl.y;
                         break;
                      case 'M':
-                        current_pos.x = sl.x;
-                        current_pos.y = sl.y;
+                        current_pos.x = sl.x + xinit;
+                        current_pos.y = sl.y + yinit;
                         break;
                      case 't':
                         if (path.length && path[path.length - 1].stype() == 'Q') {
@@ -1083,9 +1094,9 @@
                            sl.y1 = current_pos.y;
                         }
                      case 'Q':
-                        var bz = new Bezier([{ x: current_pos.x, y: current_pos.y }, { x: sl.x1, y: sl.y1 }, { x: sl.x, y: sl.y }]);
-                        current_pos.x = sl.x;
-                        current_pos.y = sl.y;
+                        var bz = new Bezier([{ x: current_pos.x, y: current_pos.y }, { x: sl.x1 + xinit, y: sl.y1 + yinit }, { x: sl.x + xinit, y: sl.y + yinit }]);
+                        current_pos.x = sl.x + xinit;
+                        current_pos.y = sl.y + yinit;
                         path.push(bz);
                         break;
                      case 's':
@@ -1113,9 +1124,9 @@
                            sl.y1 = current_pos.y;
                         }
                      case 'C':
-                        var bz = new Bezier([{ x: current_pos.x, y: current_pos.y }, { x: sl.x1, y: sl.y1 }, { x: sl.x2, y: sl.y2 }, { x: sl.x, y: sl.y }]);
-                        current_pos.x = sl.x;
-                        current_pos.y = sl.y;
+                        var bz = new Bezier([{ x: current_pos.x, y: current_pos.y }, { x: sl.x1 + xinit, y: sl.y1 + yinit }, { x: sl.x2 + xinit, y: sl.y2 + yinit }, { x: sl.x + xinit, y: sl.y + yinit }]);
+                        current_pos.x = sl.x + xinit;
+                        current_pos.y = sl.y + yinit;
                         path.push(bz);
                         break;
                      default:
