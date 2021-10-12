@@ -959,30 +959,30 @@
             framedraw.setAttribute("stroke-width", 0.5);
             $("puzzlecontainer").appendChild(framedraw);
          }
-            for (var i = 0; i < jig.nrows; i++) {
-               for (var j = 0; j < jig.ncols; j++) {
-                  if (jig.maskgrid[i][j]) {
-                     var framedraw = document.createElementNS($("puzzlecontainer").namespaceURI, "circle")
-                     framedraw.setAttribute("cx", rad + 2 * rad * j);
-                     framedraw.setAttribute("cy", rad + 2 * rad * i);
-                     framedraw.setAttribute("r", rad);
+            // for (var i = 0; i < jig.nrows; i++) {
+            //    for (var j = 0; j < jig.ncols; j++) {
+            //       if (jig.maskgrid[i][j]) {
+            //          var framedraw = document.createElementNS($("puzzlecontainer").namespaceURI, "circle")
+            //          framedraw.setAttribute("cx", rad + 2 * rad * j);
+            //          framedraw.setAttribute("cy", rad + 2 * rad * i);
+            //          framedraw.setAttribute("r", rad);
 
-                     framedraw.setAttribute("fill", "red");
-                     framedraw.setAttribute("opacity", 0.2);
-                     $("puzzlecontainer").appendChild(framedraw);
+            //          framedraw.setAttribute("fill", "red");
+            //          framedraw.setAttribute("opacity", 0.2);
+            //          $("puzzlecontainer").appendChild(framedraw);
 
-                  } else {
-                     var framedraw = document.createElementNS($("puzzlecontainer").namespaceURI, "circle")
-                     framedraw.setAttribute("cx", rad + 2 * rad * j);
-                     framedraw.setAttribute("cy", rad + 2 * rad * i);
-                     framedraw.setAttribute("r", rad);
+            //       } else {
+            //          var framedraw = document.createElementNS($("puzzlecontainer").namespaceURI, "circle")
+            //          framedraw.setAttribute("cx", rad + 2 * rad * j);
+            //          framedraw.setAttribute("cy", rad + 2 * rad * i);
+            //          framedraw.setAttribute("r", rad);
 
-                     framedraw.setAttribute("fill", "green");
-                     framedraw.setAttribute("opacity", 0.2);
-                     $("puzzlecontainer").appendChild(framedraw);
-                  }
-               }
-            }
+            //          framedraw.setAttribute("fill", "green");
+            //          framedraw.setAttribute("opacity", 0.2);
+            //          $("puzzlecontainer").appendChild(framedraw);
+            //       }
+            //    }
+            // }
          
          $("piececount").innerHTML = jig.npieces();
 
@@ -1250,23 +1250,37 @@
       the jigsaw pieces. The jigsaw is procedurally generated (using a computer algorithm), which internally uses a
       pseudorandom number generator to drive the
       process. These are the adjustable parameters:</p>
-   <ul>
-      <li><strong>Seed: </strong>It's the starting value for the deterministic, pseudorandom number generator used in
-         the generation process. Seed value, grid dimensions (columns and rows)
-         and piece tile count limits (min and max piece size) define unique jigsaw patterns that can be regenerated
-         using the same input parameters. If you tick the "<strong>use non-deterministic randomness</strong>" checkbox,
-         a non-deterministic random number generator is used instead, and a unique pattern is generated every time you
-         press the "Generate Jigsaw" button. These patterns are truly unique and can't be regenerated ever again.</li>
-      <li><strong>Columns and rows:&nbsp;</strong>The jigsaw tile grid dimensions. The larger the jigsaw, the longer it
-         takes to generate.</li>
-      <li><strong>Tile radius:</strong> The actual, physical radius of the jigsaw tiles, in millimeters. In octagonal
-         tile mode, it's the radius of the circle inscribing the octagon tiles.</li>
-      <li><strong>Frame size:</strong> Extra frame width surrounding the jigsaw.</li>
-      <li><strong>Frame corner radius:</strong> The radius of the frame corners.</li>
-      <li><strong>Minimum and maximum piece size:</strong> Minimum and maximum number of tiles allowed per piece.
-         Minimum piece size will always be honored, while the maximum size may be overshot by some tiles because of how
-         the generation algorithm works.</li>
-   </ul>
+      <ul>
+         <li><strong>Seed: </strong>It's the starting value for the deterministic, pseudorandom number generator used in the generation process. Seed value, grid dimensions (columns and rows) and piece tile count limits (min and max piece size) define unique jigsaw patterns that can be regenerated using the same input parameters. If you tick the "<strong>use non-deterministic randomness</strong>" checkbox, a non-deterministic random number generator is used instead, and a unique pattern is generated every time you press the "Generate Jigsaw" button. These patterns are truly unique and can't be regenerated ever again.</li>
+         <li><strong>Columns and rows:&nbsp;</strong>The jigsaw tile grid dimensions. The larger the jigsaw, the longer it takes to generate.</li>
+         <li><strong>Tile radius:</strong> The actual, physical radius of the jigsaw tiles, in millimeters. In octagonal tile mode, it's the radius of the circle inscribing the octagon tiles.</li>
+         <li><strong>Frame size:</strong> Extra frame width surrounding the jigsaw.</li>
+         <li><strong>Frame corner radius:</strong> The radius of the frame corners.</li>
+         <li><strong>Minimum and maximum piece size:</strong> Minimum and maximum number of tiles allowed per piece. Minimum piece size will always be honored, while the maximum size may be overshot by some tiles because of how the generation algorithm works.</li>
+         <li><strong>Custom border mode:</strong> Rectangular borders can get boring, so there's an option to upload a custom border to be used for your jigsaw. Press the file picker button on the left of the "Load SVG border Button" to open a file picker dialog. Choose the SVG file that you want to use as border, and then press the "Load SVG border" button BEFORE pressing "Generate Jigsaw". To "unload" the svg border and get back to the normal rectangular frame mode just reload the webpage. Some notes about Custom border mode:
+         <ul>
+         <li>Nothing is actually uploaded anywhere, everything stays on your computer, running inside your browser. Your SVG borders remain in your computer. You can totally use this offline.</li>
+         <li>The border file must be:
+         <ul>
+         <li>An SVG file, compliant to the SVG specification (don't use fancy features, pls).</li>
+         <li>No transforms allowed, except for traslation.</li>
+         <li>The dimensions of the jigsaw will be the numerical dimensions of your border, interpreted as millimeters. If you set your units to pixels and draw a 500x500 pixel border, it will be interpreted as 500x500mm. If you set it to inches and the dimensions are 6"x4", it ill be interpreted as 6x4mm. So it's better if you just use millimeters for the SVG border.</li>
+         <li>May use relative or absolute coordinates, or a mix of both.</li>
+         <li>All paths must be inside the viewbox, if there's a viewbox.</li>
+         <li>It's much better if you adjust the viewbox to the border, so that the viewbox is the bounding box of the border, with no extra space.</li>
+         <li>Must ONLY contain paths. No other kinds of SVG objects are allowed (for now). That means no rectangles, circles, ellipses and such. Everything must be a path.</li>
+         <li>Paths must be closed. They don't neccesarily need to end in "Z" or "z", but they have to start and end at the same point and form closed loops. And please, no path intersections.</li>
+         <li>Paths may only contain line (H,V,L), cubic bezier (C) and cuadratic bezier (Q) segments. S and T commands for continuous beziers are also supported. Elliptical arc segments (A) are NOT supported (for now). Make sure your border paths don't contain any Arc segment, as they are ignored, and it fails.</li>
+         <li>Paths may be nested inside each other (i.e. you can make holes). The generator will find the "inside" and "outside" of your border and only paint "inside". Holes are treated as "outside". Holes inside holes are treated as "Inside". Holes inside holes inside holes are treated as "outside", and so on.</li>
+         <li>Stuff drawn on inkscape usually works well.</li>
+         <li>Not sure what this all means? Check here: <a href="https://www.w3.org/TR/SVG11/">SVG specification</a></li>
+         <li>TL;DR: pick any SVG from the internet that you're licensed to use with the shape you want and try it. Maybe scale it with inkscape before to set the proper size.</li>
+         <li><span style="color: #ff0000;"><strong>This is NOT guaranteed to work, it has bugs and limitations!</strong></span></li>
+         </ul>
+         </li>
+         </ul>
+         </li>
+         </ul>
    <p>You may export the jigsaw to SVG in several ways:</p>
    <ul>
       <li><strong>Colored SVG:</strong> Export the jigsaw with colored pieces. Great to use for box covers or as the
