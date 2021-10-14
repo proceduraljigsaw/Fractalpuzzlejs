@@ -81,25 +81,48 @@
                return "L " + (this.points[1].x + offset) + " " + (this.points[1].y + offset) + " ";
             }
          }
-         plot(scale) {
+         bzpoint(u, scale) {
             let n = this.points.length;
+            let p = { x: 0, y: 0, rx: 0, ry: 0 };
+
+            for (let i = 0; i < n; i++) {
+               let B = nCr(n - 1, i) * Math.pow((1 - u), (n - 1) - i) * Math.pow(u, i);
+               let px = this.points[i].x * B;
+               let py = this.points[i].y * B;
+
+               p.x += px;
+               p.y += py;
+
+            }
+            p.rx = p.x;
+            p.ry = p.y;
+            p.x = Math.round(p.x / scale);
+            p.y = Math.round(p.y / scale);
+            return p;
+         }
+         enhance(pts, ustart, uend, uinc, scale) {
+            for (let u = ustart; u < uend; u += uinc) {
+               let p = this.bzpoint(u, scale);
+               var pp = pts[pts.length - 1];
+               if (Math.abs(pp.x - p.x) > 1 || Math.abs(pp.y - p.y) > 1) {
+                  let nuinc = uinc / 2;
+                  this.enhance(pts, u - uinc + nuinc, u, nuinc, scale);
+               }
+               pts.push(p);
+            }
+         }
+         plot(scale) {
             let curvepoints = [];
             for (let u = 0; u <= 1; u += 0.001) {
-               let p = { x: 0, y: 0, rx: 0, ry: 0 };
-
-               for (let i = 0; i < n; i++) {
-                  let B = nCr(n - 1, i) * Math.pow((1 - u), (n - 1) - i) * Math.pow(u, i);
-                  let px = this.points[i].x * B;
-                  let py = this.points[i].y * B;
-
-                  p.x += px;
-                  p.y += py;
-
+               let p = this.bzpoint(u, scale);
+               if (curvepoints.length) {
+                  var pp = curvepoints[curvepoints.length - 1];
+                  if (Math.abs(pp.x - p.x) > 1 || Math.abs(pp.y - p.y) > 1) {
+                     //Lacking raster resolution
+                     let nuinc = 0.001 / 2;
+                     this.enhance(curvepoints, u - 0.001 + nuinc, u, nuinc, scale);
+                  }
                }
-               p.rx = p.x;
-               p.ry = p.y;
-               p.x = Math.round(p.x / scale);
-               p.y = Math.round(p.y / scale);
                curvepoints.push(p);
             }
             return curvepoints;
@@ -417,7 +440,7 @@
                });
 
             });
-            console.log("V", minx, maxx, miny, maxy);
+            // console.log("V", minx, maxx, miny, maxy);
             allpts.forEach((p) => {
 
                this.maskgrid[p.y][p.x] = 1;
