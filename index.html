@@ -68,8 +68,6 @@
          pts() {
             return this.points;
          }
-
-
          svg(offset) {
             if (this.points.length == 4) {
                return "C " + ((this.points[1].x + offset)) + " " + (this.points[1].y + offset) + ", " + (this.points[2].x + offset) + " " + (this.points[2].y + offset) + ", " + (this.points[3].x + offset) + " " + (this.points[3].y + offset) + " ";
@@ -128,6 +126,139 @@
             return curvepoints;
          }
       }
+
+
+      function d2r(deg) {
+         var pi = Math.PI;
+         return deg * (pi / 180);
+      }
+      function r2d(radians) {
+         var pi = Math.PI;
+         return radians * (180 / pi);
+      }
+      function dot(v1, v2) {
+         var ret = 0;
+         for (var i = 0; i < v1.length; i++) {
+            ret += v1[i] * v2[i];
+         }
+         return ret;
+      }
+
+      function norm(v) {
+         return Math.sqrt(dot(v, v));
+      }
+
+      function av(v1, v2) {
+         var dp = dot(v1, v2);
+         var n = norm(v1) * norm(v2);
+         var s = (v1[0] * v2[1] - v1[1] * v2[0]) > 0 ? 1 : -1;
+         return s * Math.acos(dp / n);
+      }
+      class SVGArc {
+         constructor(sp, rx, ry, xr, laf, sf, ep) {
+            this.type = 'A';
+            this.sp = sp;
+            this.rx = rx;
+            this.ry = ry;
+            this.xr = xr;
+            this.laf = laf;
+            this.sf = sf;
+            this.ep = ep;
+            var phi = d2r(xr);
+            var cosphi = Math.cos(phi);
+            var sinphi = Math.sin(phi);
+
+            var x1m = (sp.x - ep.x) / 2;
+            var y1m = (sp.y - ep.y) / 2;
+
+            var x1p = cosphi * x1m + sinphi * y1m;
+            var y1p = cosphi * y1m - sinphi * x1m;
+
+            var rx2 = rx * rx;
+            var ry2 = ry * ry;
+
+            var x1p2 = x1p * x1p;
+            var y1p2 = y1p * y1p;
+
+            var lsqrt = Math.sqrt((rx2 * ry2 - rx2 * y1p2 - ry2 * x1p2) / (rx2 * y1p2 + ry2 * x1p2));
+            if (laf == sf) {
+               lsqrt = -lsqrt;
+            }
+            var cxp = lsqrt * (rx * y1p / ry);
+            var cyp = -lsqrt * (ry * x1p / rx);
+
+            var cx = cosphi * cxp - sinphi * cyp + (sp.x + ep.x) / 2;
+            var cy = sinphi * cxp + cosphi * cyp + (sp.y + ep.y) / 2;
+
+            var th1 = r2d(av([1, 0], [((x1p - cxp) / rx), ((y1p - cyp) / ry)]));
+            var deltath = r2d(av([((x1p - cxp) / rx), ((y1p - cyp) / ry)], [((-x1p - cxp) / rx), ((-y1p - cyp) / ry)])) % 360;
+
+            if (!sf && deltath > 0) {
+               deltath -= 360;
+            }
+            if (sf && deltath < 0) {
+               deltath += 360;
+            }
+            this.c = { x: cx, y: cy };
+            this.th1 = d2r(th1);
+            this.deltath = d2r(deltath);
+            this.cosphi = cosphi;
+            this.sinphi = sinphi;
+         }
+
+         pts() {
+            return [this.sp, this.ep];
+         }
+
+         stype() {
+            return this.type;
+         }
+
+         svg(offset) {
+            return "A " + this.rx + " " + this.ry + " " + this.xr + " " + (this.laf ? "1 " : "0 ") + (this.sf ? "1 " : "0 ") + ((this.ep.x + offset)) + " " + (this.ep.y + offset) + " ";
+         }
+
+         arcpoint(th, scale) {
+            let p = { x: 0, y: 0, rx: 0, ry: 0 };
+            p.x = this.cosphi * this.rx * Math.cos(th) - this.sinphi * this.ry * Math.sin(th) + this.c.x;
+            p.y = this.sinphi * this.rx * Math.cos(th) + this.cosphi * this.ry * Math.sin(th) + this.c.y;
+
+            p.rx = p.x;
+            p.ry = p.y;
+            p.x = Math.round(p.x / scale);
+            p.y = Math.round(p.y / scale);
+            return p;
+         }
+         enhance(pts, ustart, uend, uinc, scale) {
+            for (let u = ustart; u < uend; u += uinc) {
+               let p = this.arcpoint(u * this.deltath + this.th1, scale);
+               var pp = pts[pts.length - 1];
+               if (Math.abs(pp.x - p.x) > 1 || Math.abs(pp.y - p.y) > 1) {
+                  let nuinc = uinc / 2;
+                  this.enhance(pts, u - uinc + nuinc, u, nuinc, scale);
+               }
+               pts.push(p);
+            }
+         }
+         plot(scale) {
+            let curvepoints = [];
+            for (let u = 0; u <= 1; u += 0.001) {
+               let p = this.arcpoint(u * this.deltath + this.th1, scale);
+               if (curvepoints.length) {
+                  var pp = curvepoints[curvepoints.length - 1];
+                  if (Math.abs(pp.x - p.x) > 1 || Math.abs(pp.y - p.y) > 1) {
+                     //Lacking raster resolution
+                     let nuinc = 0.001 / 2;
+                     this.enhance(curvepoints, u - 0.001 + nuinc, u, nuinc, scale);
+                  }
+               }
+               curvepoints.push(p);
+            }
+            return curvepoints;
+         }
+      }
+
+
       class Tile {
          constructor(x, y) {
             this._x = x;
@@ -957,10 +1088,13 @@
          parse_input();
          if (customborder.paths) {
             frame = 0;
+            $("width").innerHTML = customborder.width;
+            $("height").innerHTML = customborder.height;
          }
          jig = new CircleFractalJigsaw(ncols, nrows, minp, maxp, customborder, rad);
          nrows = jig.nrows;
          ncols = jig.ncols;
+
          jig.generate();
          while (jig.fillholes(false));
          jig.fillholes(true);
@@ -1179,6 +1313,18 @@
                         current_pos.y = sl.y + yinit;
                         path.push(bz);
                         break;
+                     case 'a':
+                        var a = new SVGArc({ x: current_pos.x, y: current_pos.y }, sl.r1, sl.r2, sl.angle, sl.largeArcFlag, sl.sweepFlag, { x: sl.x + current_pos.x, y: sl.y + current_pos.y });
+                        current_pos.x += sl.x;
+                        current_pos.y += sl.y;
+                        path.push(a);
+                        break;
+                     case 'A':
+                        var a = new SVGArc({ x: current_pos.x, y: current_pos.y }, sl.r1, sl.r2, sl.angle, sl.largeArcFlag, sl.sweepFlag, { x: sl.x + xinit, y: sl.y + yinit });
+                        current_pos.x = sl.x + xinit;
+                        current_pos.y = sl.y + yinit;
+                        path.push(a);
+                        break;
                      default:
                         console.log("Dunno what to do with ", sl.pathSegTypeAsLetter);
                         break;
@@ -1340,10 +1486,8 @@
                      rectangles, circles, ellipses and such. Everything must be a path.</li>
                   <li>Paths must be closed. They don't neccesarily need to end in "Z" or "z", but they have to start and
                      end at the same point and form closed loops. And please, no path intersections.</li>
-                  <li>Paths may only contain line (H,V,L), cubic bezier (C) and cuadratic bezier (Q) segments. S and T
-                     commands for continuous beziers are also supported. Elliptical arc segments (A) are NOT supported
-                     (for now). Make sure your border paths don't contain any Arc segment, as they are ignored, and it
-                     fails.</li>
+                  <li>It should support and poroperly render all SVG path commands (lines, beziers and elliptic arcs).
+                  </li>
                   <li>Paths may be nested inside each other (i.e. you can make holes). The generator will find the
                      "inside" and "outside" of your border and only paint "inside". Holes are treated as "outside".
                      Holes inside holes are treated as "Inside". Holes inside holes inside holes are treated as
