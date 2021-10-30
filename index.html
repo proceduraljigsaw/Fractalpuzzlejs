@@ -154,6 +154,46 @@
          var s = (v1[0] * v2[1] - v1[1] * v2[0]) > 0 ? 1 : -1;
          return s * Math.acos(dp / n);
       }
+
+
+      function plotenhance(path,matrix, pts, ustart, uend, uinc, scale) {
+         var len = path.getTotalLength();
+         for (let u = ustart; u < uend; u += uinc) {
+            let p = path.getPointAtLength(u * len).matrixTransform(matrix);
+            p.x = Math.round(p.x / scale);
+            p.y = Math.round(p.y / scale);
+            var pp = pts[pts.length - 1];
+            if (Math.abs(pp.x - p.x) > 1 || Math.abs(pp.y - p.y) > 1) {
+               let nuinc = uinc / 2;
+               plotenhance(path,matrix, pts, u - uinc + nuinc, u, nuinc, scale);
+            }
+            pts.push(p);
+         }
+      }
+
+      function plotpath(path,matrix, scale) {
+         var len = path.getTotalLength();
+         var ancestor = path.ownerSVGElement;
+         var mm = ancestor.getCTM();
+         var matrixp = path.getCTM();
+         var matrix2p = path.getScreenCTM();
+         let curvepoints = [];
+         for (let u = 0; u <= 1; u += 0.001) {
+            let p = path.getPointAtLength(u * len).matrixTransform(matrix);
+            p.x = Math.round(p.x / scale);
+            p.y = Math.round(p.y / scale);
+            if (curvepoints.length) {
+               var pp = curvepoints[curvepoints.length - 1];
+               if (Math.abs(pp.x - p.x) > 1 || Math.abs(pp.y - p.y) > 1) {
+                  //Lacking raster resolution
+                  let nuinc = 0.001 / 2;
+                  plotenhance(path,matrix, curvepoints, u - 0.001 + nuinc, u, nuinc, scale);
+               }
+            }
+            curvepoints.push(p);
+         }
+         return curvepoints;
+      }
       class SVGArc {
          constructor(sp, rx, ry, xr, laf, sf, ep) {
             this.type = 'A';
@@ -537,7 +577,7 @@
             this.maskgrid = Array2D(nrows, ncols);
             this.grid = new CellGrid(ncols, nrows)
             if (border.paths) {
-               this.fillmask(border.paths, crad, parseFloat($("frame").value));
+               this.fillmask(border.paths,border.matrix, crad, parseFloat($("frame").value));
                for (var i = 0; i < nrows; i++) {
                   for (var j = 0; j < ncols; j++) {
                      if (this.maskgrid[i][j]) {
@@ -552,25 +592,22 @@
 
          }
 
-         fillmask(paths, crad, frame) {
+         fillmask(paths,matrix, crad, frame) {
             const crosslookup = [[-1, 0], [1, 0], [0, 1], [0, -1]];
             var dia = 2 * crad;
             var allpts = []
             var minx, miny, maxx, maxy
-            paths.forEach((p) => {
-               p.forEach((seg) => {
-                  var pts = seg.plot(dia);
-                  pts.forEach((pt) => {
-                     allpts.push(pt);
-                     if (isNaN(minx) || pt.x < minx) minx = pt.x;
-                     if (isNaN(miny) || pt.y < miny) miny = pt.y;
-                     if (isNaN(maxx) || pt.x > maxx) maxx = pt.x;
-                     if (isNaN(maxy) || pt.y > maxy) maxy = pt.y;
-
-                  });
+            for (let p of paths) {
+               var pts = plotpath(p,matrix, dia);
+               pts.forEach((pt) => {
+                  allpts.push(pt);
+                  if (isNaN(minx) || pt.x < minx) minx = pt.x;
+                  if (isNaN(miny) || pt.y < miny) miny = pt.y;
+                  if (isNaN(maxx) || pt.x > maxx) maxx = pt.x;
+                  if (isNaN(maxy) || pt.y > maxy) maxy = pt.y;
                });
 
-            });
+            }
             // console.log("V", minx, maxx, miny, maxy);
             allpts.forEach((p) => {
 
@@ -1179,7 +1216,7 @@
          fr.onloadend = function () {
             //console.log(fr.result);
             var parser = new DOMParser();
-            var xmldoc = parser.parseFromString(fr.result, "text/xml");
+            var xmldoc = parser.parseFromString(fr.result, "image/svg+xml");
             var viewBox = xmldoc.getElementsByTagName("svg")[0];
             if (xmldoc.getElementsByTagName("svg")[0].width.baseVal.unitType == 2) {
                var width = Math.ceil(xmldoc.getElementsByTagName("svg")[0].width.baseVal.value);
@@ -1193,146 +1230,13 @@
             customborder.height = height;
             var paths_svg = xmldoc.getElementsByTagName("path");
             var g = xmldoc.getElementsByTagName("g");
-            var xinit = 0, yinit = 0;
             if (g.length) {
                if (g[0].transform.baseVal.length) {
-                  xinit = g[0].transform.baseVal[0].matrix.e;
-                  yinit = g[0].transform.baseVal[0].matrix.f;
+                  customborder.matrix = g[0].transform.baseVal[0].matrix
                }
             }
-            var paths = [];
-            for (let p of paths_svg) {
-               var path = [];
-               var current_pos = { x: xinit, y: yinit };
-               for (let sl of p.animatedPathSegList) {
-                  switch (sl.pathSegTypeAsLetter) {
-                     case 'z':
-                     case 'Z':
-                        if (path.length) {
-                           var l = new Bezier([{ x: current_pos.x, y: current_pos.y }, path[0].pts()[0]]);
-                           path.push(l);
-                        }
-                        break;
-                     case 'h':
-                     case 'v':
-                     case 'l':
-                        var dx = 0;
-                        var dy = 0;
-                        if (sl.x) {
-                           dx = sl.x;
-                        }
-                        if (sl.y) {
-                           dy = sl.y;
-                        }
-                        var l = new Bezier([{ x: current_pos.x, y: current_pos.y }, { x: current_pos.x + dx, y: current_pos.y + dy }]);
-                        current_pos.x += dx;
-                        current_pos.y += dy;
-                        path.push(l);
-                        break;
-                     case 'H':
-                     case 'V':
-                     case 'L':
-                        var nx = current_pos.x;
-                        var ny = current_pos.y;
-                        if (sl.x) {
-                           nx = sl.x + xinit;
-                        }
-                        if (sl.y) {
-                           ny = sl.y + yinit;
-                        }
-                        var l = new Bezier([{ x: current_pos.x, y: current_pos.y }, { x: nx, y: ny }]);
-                        current_pos.x = nx;
-                        current_pos.y = ny;
-                        path.push(l);
-                        break;
-                     case 'm':
-                        current_pos.x += sl.x;
-                        current_pos.y += sl.y;
-                        break;
-                     case 'M':
-                        current_pos.x = sl.x + xinit;
-                        current_pos.y = sl.y + yinit;
-                        break;
-                     case 't':
-                        if (path.length && path[path.length - 1].stype() == 'Q') {
-                           var lastpath = path[path.length - 1];
-                           sl.x1 = lastpath.pts()[2].x - lastpath.pts()[1].x;
-                           sl.y1 = lastpath.pts()[2].y - lastpath.pts()[1].y;
-                        } else {
-                           sl.x1 = 0;
-                           sl.y1 = 0;
-                        }
-                     case 'q':
-                        var bz = new Bezier([{ x: current_pos.x, y: current_pos.y }, { x: sl.x1 + current_pos.x, y: sl.y1 + current_pos.y }, { x: sl.x + current_pos.x, y: sl.y + current_pos.y }]);
-                        current_pos.x += sl.x;
-                        current_pos.y += sl.y;
-                        path.push(bz);
-                        break;
-                     case 'T':
-                        if (path.length && path[path.length - 1].stype() == 'Q') {
-                           var lastpath = path[path.length - 1];
-                           sl.x1 = 2 * lastpath.pts()[2].x - lastpath.pts()[1].x;
-                           sl.y1 = 2 * lastpath.pts()[2].y - lastpath.pts()[1].y;
-                        } else {
-                           sl.x1 = current_pos.x;
-                           sl.y1 = current_pos.y;
-                        }
-                     case 'Q':
-                        var bz = new Bezier([{ x: current_pos.x, y: current_pos.y }, { x: sl.x1 + xinit, y: sl.y1 + yinit }, { x: sl.x + xinit, y: sl.y + yinit }]);
-                        current_pos.x = sl.x + xinit;
-                        current_pos.y = sl.y + yinit;
-                        path.push(bz);
-                        break;
-                     case 's':
-                        if (path.length && path[path.length - 1].stype() == 'C') {
-                           var lastpath = path[path.length - 1];
-                           sl.x1 = lastpath.pts()[3].x - lastpath.pts()[2].x;
-                           sl.y1 = lastpath.pts()[3].y - lastpath.pts()[2].y;
-                        } else {
-                           sl.x1 = 0;
-                           sl.y1 = 0;
-                        }
-                     case 'c':
-                        var bz = new Bezier([{ x: current_pos.x, y: current_pos.y }, { x: sl.x1 + current_pos.x, y: sl.y1 + current_pos.y }, { x: sl.x2 + current_pos.x, y: sl.y2 + current_pos.y }, { x: sl.x + current_pos.x, y: sl.y + current_pos.y }]);
-                        current_pos.x += sl.x;
-                        current_pos.y += sl.y;
-                        path.push(bz);
-                        break;
-                     case 'S':
-                        if (path.length && path[path.length - 1].stype() == 'C') {
-                           var lastpath = path[path.length - 1];
-                           sl.x1 = 2 * lastpath.pts()[3].x - lastpath.pts()[2].x;
-                           sl.y1 = 2 * lastpath.pts()[3].y - lastpath.pts()[2].y;
-                        } else {
-                           sl.x1 = current_pos.x;
-                           sl.y1 = current_pos.y;
-                        }
-                     case 'C':
-                        var bz = new Bezier([{ x: current_pos.x, y: current_pos.y }, { x: sl.x1 + xinit, y: sl.y1 + yinit }, { x: sl.x2 + xinit, y: sl.y2 + yinit }, { x: sl.x + xinit, y: sl.y + yinit }]);
-                        current_pos.x = sl.x + xinit;
-                        current_pos.y = sl.y + yinit;
-                        path.push(bz);
-                        break;
-                     case 'a':
-                        var a = new SVGArc({ x: current_pos.x, y: current_pos.y }, sl.r1, sl.r2, sl.angle, sl.largeArcFlag, sl.sweepFlag, { x: sl.x + current_pos.x, y: sl.y + current_pos.y });
-                        current_pos.x += sl.x;
-                        current_pos.y += sl.y;
-                        path.push(a);
-                        break;
-                     case 'A':
-                        var a = new SVGArc({ x: current_pos.x, y: current_pos.y }, sl.r1, sl.r2, sl.angle, sl.largeArcFlag, sl.sweepFlag, { x: sl.x + xinit, y: sl.y + yinit });
-                        current_pos.x = sl.x + xinit;
-                        current_pos.y = sl.y + yinit;
-                        path.push(a);
-                        break;
-                     default:
-                        console.log("Dunno what to do with ", sl.pathSegTypeAsLetter);
-                        break;
-                  }
-               };
-               paths.push(path);
-            };
-            customborder.paths = paths;
+            customborder.matrix = g[0].transform.baseVal[0].matrix
+            customborder.paths = paths_svg;
 
          };
       }
