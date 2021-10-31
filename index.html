@@ -593,7 +593,6 @@
          }
 
          fillmask(paths, crad, frame) {
-            console.log(frame);
             const crosslookup = [[-1, 0], [1, 0], [0, 1], [0, -1]];
             var dia = 2 * crad;
             var allpts = []
@@ -1144,7 +1143,6 @@
             pgroup.setAttribute("transform", "translate(" + (-($("puzzlecontainer").getBBox().x)) + "," + (-($("puzzlecontainer").getBBox().y)) + ")");
             flatten($("puzzlecontainer"), false, true);
             //Now the border is normalized
-            console.log($("puzzlecontainer").getBBox());
 
             customborder.width = $("puzzlecontainer").getBBox().width + $("puzzlecontainer").getBBox().x;
             customborder.height = $("puzzlecontainer").getBBox().height + $("puzzlecontainer").getBBox().y;
