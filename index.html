@@ -5,6 +5,7 @@
    <!-- HTML and several functions based or copied from https://github.com/Draradech/jigsaw -->
    <meta charset="UTF-8">
    <title>Fractal jigsaw puzzle generator</title>
+   <script type="text/javascript" src="flatten.js"></script>
    <script type="text/javascript">
 
       var seed = 1;
@@ -156,30 +157,27 @@
       }
 
 
-      function plotenhance(path,matrix, pts, ustart, uend, uinc, scale) {
+      function plotenhance(path, pts, ustart, uend, uinc, scale) {
          var len = path.getTotalLength();
          for (let u = ustart; u < uend; u += uinc) {
-            let p = path.getPointAtLength(u * len).matrixTransform(matrix);
+            let p = path.getPointAtLength(u * len);
             p.x = Math.round(p.x / scale);
             p.y = Math.round(p.y / scale);
             var pp = pts[pts.length - 1];
             if (Math.abs(pp.x - p.x) > 1 || Math.abs(pp.y - p.y) > 1) {
                let nuinc = uinc / 2;
-               plotenhance(path,matrix, pts, u - uinc + nuinc, u, nuinc, scale);
+               plotenhance(path, pts, u - uinc + nuinc, u, nuinc, scale);
             }
             pts.push(p);
          }
       }
 
-      function plotpath(path,matrix, scale) {
+      function plotpath(path, scale) {
          var len = path.getTotalLength();
          var ancestor = path.ownerSVGElement;
-         var mm = ancestor.getCTM();
-         var matrixp = path.getCTM();
-         var matrix2p = path.getScreenCTM();
          let curvepoints = [];
          for (let u = 0; u <= 1; u += 0.001) {
-            let p = path.getPointAtLength(u * len).matrixTransform(matrix);
+            let p = path.getPointAtLength(u * len);
             p.x = Math.round(p.x / scale);
             p.y = Math.round(p.y / scale);
             if (curvepoints.length) {
@@ -187,7 +185,7 @@
                if (Math.abs(pp.x - p.x) > 1 || Math.abs(pp.y - p.y) > 1) {
                   //Lacking raster resolution
                   let nuinc = 0.001 / 2;
-                  plotenhance(path,matrix, curvepoints, u - 0.001 + nuinc, u, nuinc, scale);
+                  plotenhance(path, curvepoints, u - 0.001 + nuinc, u, nuinc, scale);
                }
             }
             curvepoints.push(p);
@@ -577,7 +575,7 @@
             this.maskgrid = Array2D(nrows, ncols);
             this.grid = new CellGrid(ncols, nrows)
             if (border.paths) {
-               this.fillmask(border.paths,border.matrix, crad, parseFloat($("frame").value));
+               this.fillmask(border.paths, crad, parseFloat($("frame").value));
                for (var i = 0; i < nrows; i++) {
                   for (var j = 0; j < ncols; j++) {
                      if (this.maskgrid[i][j]) {
@@ -592,13 +590,13 @@
 
          }
 
-         fillmask(paths,matrix, crad, frame) {
+         fillmask(paths, crad, frame) {
             const crosslookup = [[-1, 0], [1, 0], [0, 1], [0, -1]];
             var dia = 2 * crad;
             var allpts = []
             var minx, miny, maxx, maxy
             for (let p of paths) {
-               var pts = plotpath(p,matrix, dia);
+               var pts = plotpath(p, dia);
                pts.forEach((pt) => {
                   allpts.push(pt);
                   if (isNaN(minx) || pt.x < minx) minx = pt.x;
@@ -1147,9 +1145,9 @@
          if ($("circular").checked) {
             arc_shape = 0;
          }
-         while ($("puzzlecontainer").firstChild) {
-            $("puzzlecontainer").removeChild($("puzzlecontainer").firstChild);
-         }
+         // while ($("puzzlecontainer").firstChild) {
+         //    $("puzzlecontainer").removeChild($("puzzlecontainer").firstChild);
+         // }
          coloring_seed = seed;
          jig.multipaths(frame, rad, arc_shape).forEach((p) => {
             var newpath = document.createElementNS($("puzzlecontainer").namespaceURI, "path")
@@ -1213,30 +1211,44 @@
          var borderfile = $("borderfile");
          var fr = new FileReader();
          fr.readAsText(borderfile.files[0]);
-         fr.onloadend = function () {
+         fr.onload = function () {
             //console.log(fr.result);
             var parser = new DOMParser();
             var xmldoc = parser.parseFromString(fr.result, "image/svg+xml");
-            var viewBox = xmldoc.getElementsByTagName("svg")[0];
-            if (xmldoc.getElementsByTagName("svg")[0].width.baseVal.unitType == 2) {
-               var width = Math.ceil(xmldoc.getElementsByTagName("svg")[0].width.baseVal.value);
-               var height = Math.ceil(xmldoc.getElementsByTagName("svg")[0].height.baseVal.value);
-            } else {
-               var width = Math.ceil(xmldoc.getElementsByTagName("svg")[0].width.baseVal.valueInSpecifiedUnits);
-               var height = Math.ceil(xmldoc.getElementsByTagName("svg")[0].height.baseVal.valueInSpecifiedUnits);
-            }
+            
+            var svgdata = xmldoc.getElementsByTagName("svg")[0];
+            svgdata = document.body.appendChild(svgdata);
 
-            customborder.width = width;
-            customborder.height = height;
-            var paths_svg = xmldoc.getElementsByTagName("path");
-            var g = xmldoc.getElementsByTagName("g");
-            if (g.length) {
-               if (g[0].transform.baseVal.length) {
-                  customborder.matrix = g[0].transform.baseVal[0].matrix
-               }
-            }
-            customborder.matrix = g[0].transform.baseVal[0].matrix
+
+
+            flatten(svgdata,false,true);
+            var bb = svgdata.getBBox();
+
+            customborder.width = bb.width;
+            customborder.height = bb.height;
+            var paths_svg = svgdata.getElementsByTagName("path");
+
+
+            // var g = xmldoc.getElementsByTagName("g");
+            // if (g.length) {
+            //    if (g[0].transform.baseVal.length) {
+            //       customborder.matrix = g[0].transform.baseVal[0].matrix
+            //    }
+            // }
+            // customborder.matrix = g[0].transform.baseVal[0].matrix
             customborder.paths = paths_svg;
+            
+            $("puzzlecontainer").setAttribute("width", bb.width);
+            $("puzzlecontainer").setAttribute("height", bb.height);
+            for (let p of paths_svg) {
+               var newpath = document.createElementNS($("puzzlecontainer").namespaceURI, "path")
+               console.log(p.d);
+               newpath.setAttribute("d", p.getAttribute('d'));
+               newpath.setAttribute("stroke", "black");
+               newpath.setAttribute("stroke-width",1);
+               newpath.setAttribute("fill","none");
+               $("puzzlecontainer").appendChild(newpath);
+            }
 
          };
       }
