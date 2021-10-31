@@ -178,6 +178,8 @@
          let curvepoints = [];
          for (let u = 0; u <= 1; u += 0.001) {
             let p = path.getPointAtLength(u * len);
+            p.rx = p.x;
+            p.ry = p.y;
             p.x = Math.round(p.x / scale);
             p.y = Math.round(p.y / scale);
             if (curvepoints.length) {
@@ -591,6 +593,7 @@
          }
 
          fillmask(paths, crad, frame) {
+            console.log(frame);
             const crosslookup = [[-1, 0], [1, 0], [0, 1], [0, -1]];
             var dia = 2 * crad;
             var allpts = []
@@ -857,14 +860,11 @@
                data += "Z\"></path>";
             });
             if (customborder.paths) {
-               customborder.paths.forEach((p) => {
+               for (let p of customborder.paths) {
                   data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"";
-                  data += "M " + (p[0].pts()[0].x + rad) + ", " + (p[0].pts()[0].y + rad) + " "
-                  p.forEach((seg) => {
-                     data += seg.svg(rad);
-                  });
+                  data += p.getAttribute("d");
                   data += "\"></path>";
-               });
+               }
             } else {
                data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"" + createframe() + "\"></path>";
             }
@@ -894,14 +894,11 @@
             });
             data += "\"></path>"
             if (customborder.paths) {
-               customborder.paths.forEach((p) => {
+               for (let p of customborder.paths) {
                   data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"";
-                  data += "M " + (p[0].pts()[0].x + rad) + ", " + (p[0].pts()[0].y + rad) + " "
-                  p.forEach((seg) => {
-                     data += seg.svg(rad);
-                  });
+                  data += p.getAttribute("d");
                   data += "\"></path>";
-               });
+               }
             } else {
                data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"" + createframe() + "\"></path>";
             }
@@ -941,14 +938,11 @@
                }
             });
             if (customborder.paths) {
-               customborder.paths.forEach((p) => {
+               for (let p of customborder.paths) {
                   data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"";
-                  data += "M " + (p[0].pts()[0].x + rad) + ", " + (p[0].pts()[0].y + rad) + " "
-                  p.forEach((seg) => {
-                     data += seg.svg(rad);
-                  });
+                  data += p.getAttribute("d");
                   data += "\"></path>";
-               });
+               }
             } else {
                data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"" + createframe() + "\"></path>";
             }
@@ -967,14 +961,11 @@
                data += "\"></path>"
             });
             if (customborder.paths) {
-               customborder.paths.forEach((p) => {
+               for (let p of customborder.paths) {
                   data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"";
-                  data += "M " + (p[0].pts()[0].x + rad) + ", " + (p[0].pts()[0].y + rad) + " "
-                  p.forEach((seg) => {
-                     data += seg.svg(rad);
-                  });
+                  data += p.getAttribute("d");
                   data += "\"></path>";
-               });
+               }
             } else {
                data += "<path fill=\"none\" stroke=\"black\" stroke-width=\"0.1\" d=\"" + createframe() + "\"></path>";
             }
@@ -1121,8 +1112,45 @@
 
       function generate() {
          parse_input();
-         if (customborder.paths) {
+         while ($("puzzlecontainer").firstChild) {
+            $("puzzlecontainer").removeChild($("puzzlecontainer").firstChild);
+         }
+         if (customborder.svgdata) {
             frame = 0;
+            var svgdata = document.body.appendChild(customborder.svgdata);
+            //Initial flattening to get rid of transforms
+            flatten(svgdata, false, true);
+
+            var paths_svg = svgdata.getElementsByTagName("path");
+            var pgroup = document.createElementNS($("puzzlecontainer").namespaceURI, "g");
+            //When all transforms have been applied for all paths, the remaining one is the viewbox/viewport thing
+            var vt = paths_svg[0].getCTM();
+            $("puzzlecontainer").append(pgroup);
+
+            for (let p of paths_svg) {
+               var newpath = document.createElementNS($("puzzlecontainer").namespaceURI, "path")
+               newpath.setAttribute("d", p.getAttribute('d'));
+               newpath.setAttribute("stroke", "black");
+               newpath.setAttribute("stroke-width", 1);
+               newpath.setAttribute("fill", "none");
+               pgroup.appendChild(newpath);
+            }
+
+            document.body.removeChild(svgdata);
+            //De-viewboxfy
+            pgroup.setAttribute("transform", "matrix(" + vt.a + "," + vt.b + "," + vt.c + "," + vt.d + "," + vt.e + "," + vt.f + ")");
+            flatten($("puzzlecontainer"), false, true);
+            //To left corner
+            pgroup.setAttribute("transform", "translate(" + (-($("puzzlecontainer").getBBox().x)) + "," + (-($("puzzlecontainer").getBBox().y)) + ")");
+            flatten($("puzzlecontainer"), false, true);
+            //Now the border is normalized
+            console.log($("puzzlecontainer").getBBox());
+
+            customborder.width = $("puzzlecontainer").getBBox().width + $("puzzlecontainer").getBBox().x;
+            customborder.height = $("puzzlecontainer").getBBox().height + $("puzzlecontainer").getBBox().y;
+
+            customborder.paths = pgroup.getElementsByTagName("path");
+
             $("width").innerHTML = customborder.width;
             $("height").innerHTML = customborder.height;
          }
@@ -1145,9 +1173,18 @@
          if ($("circular").checked) {
             arc_shape = 0;
          }
-         // while ($("puzzlecontainer").firstChild) {
-         //    $("puzzlecontainer").removeChild($("puzzlecontainer").firstChild);
-         // }
+
+         if (customborder.paths) {
+            pgroup.setAttribute("transform", "translate(" + rad + "," + rad + ")");
+            flatten($("puzzlecontainer"), false, true);
+         } else {
+            var framedraw = document.createElementNS($("puzzlecontainer").namespaceURI, "path")
+            framedraw.setAttribute("d", createframe());
+            framedraw.setAttribute("stroke", "black");
+            framedraw.setAttribute("fill", "none");
+            framedraw.setAttribute("stroke-width", 0.5);
+            $("puzzlecontainer").appendChild(framedraw);
+         }
          coloring_seed = seed;
          jig.multipaths(frame, rad, arc_shape).forEach((p) => {
             var newpath = document.createElementNS($("puzzlecontainer").namespaceURI, "path")
@@ -1157,51 +1194,7 @@
             newpath.setAttribute("fill", "#" + Math.floor(uniform(0, 16777216)).toString(16));
             $("puzzlecontainer").appendChild(newpath);
          });
-         if (customborder.paths) {
-            customborder.paths.forEach((p) => {
-               var svgpathd = "M " + (p[0].pts()[0].x + rad) + ", " + (p[0].pts()[0].y + rad) + " "
-               p.forEach((seg) => {
-                  svgpathd += seg.svg(rad);
-               });
-               var framedraw = document.createElementNS($("puzzlecontainer").namespaceURI, "path")
-               framedraw.setAttribute("d", svgpathd);
-               framedraw.setAttribute("stroke", "black");
-               framedraw.setAttribute("fill", "none");
-               framedraw.setAttribute("stroke-width", 0.5);
-               $("puzzlecontainer").appendChild(framedraw);
-            });
-         } else {
-            var framedraw = document.createElementNS($("puzzlecontainer").namespaceURI, "path")
-            framedraw.setAttribute("d", createframe());
-            framedraw.setAttribute("stroke", "black");
-            framedraw.setAttribute("fill", "none");
-            framedraw.setAttribute("stroke-width", 0.5);
-            $("puzzlecontainer").appendChild(framedraw);
-         }
-         // for (var i = 0; i < jig.nrows; i++) {
-         //    for (var j = 0; j < jig.ncols; j++) {
-         //       if (jig.maskgrid[i][j]) {
-         //          var framedraw = document.createElementNS($("puzzlecontainer").namespaceURI, "circle")
-         //          framedraw.setAttribute("cx", rad + 2 * rad * j);
-         //          framedraw.setAttribute("cy", rad + 2 * rad * i);
-         //          framedraw.setAttribute("r", rad);
 
-         //          framedraw.setAttribute("fill", "red");
-         //          framedraw.setAttribute("opacity", 0.2);
-         //          $("puzzlecontainer").appendChild(framedraw);
-
-         //       } else {
-         //          var framedraw = document.createElementNS($("puzzlecontainer").namespaceURI, "circle")
-         //          framedraw.setAttribute("cx", rad + 2 * rad * j);
-         //          framedraw.setAttribute("cy", rad + 2 * rad * i);
-         //          framedraw.setAttribute("r", rad);
-
-         //          framedraw.setAttribute("fill", "green");
-         //          framedraw.setAttribute("opacity", 0.2);
-         //          $("puzzlecontainer").appendChild(framedraw);
-         //       }
-         //    }
-         // }
 
          $("piececount").innerHTML = jig.npieces();
 
@@ -1215,40 +1208,9 @@
             //console.log(fr.result);
             var parser = new DOMParser();
             var xmldoc = parser.parseFromString(fr.result, "image/svg+xml");
-            
+
             var svgdata = xmldoc.getElementsByTagName("svg")[0];
-            svgdata = document.body.appendChild(svgdata);
-
-
-
-            flatten(svgdata,false,true);
-            var bb = svgdata.getBBox();
-
-            customborder.width = bb.width;
-            customborder.height = bb.height;
-            var paths_svg = svgdata.getElementsByTagName("path");
-
-
-            // var g = xmldoc.getElementsByTagName("g");
-            // if (g.length) {
-            //    if (g[0].transform.baseVal.length) {
-            //       customborder.matrix = g[0].transform.baseVal[0].matrix
-            //    }
-            // }
-            // customborder.matrix = g[0].transform.baseVal[0].matrix
-            customborder.paths = paths_svg;
-            
-            $("puzzlecontainer").setAttribute("width", bb.width);
-            $("puzzlecontainer").setAttribute("height", bb.height);
-            for (let p of paths_svg) {
-               var newpath = document.createElementNS($("puzzlecontainer").namespaceURI, "path")
-               console.log(p.d);
-               newpath.setAttribute("d", p.getAttribute('d'));
-               newpath.setAttribute("stroke", "black");
-               newpath.setAttribute("stroke-width",1);
-               newpath.setAttribute("fill","none");
-               $("puzzlecontainer").appendChild(newpath);
-            }
+            customborder.svgdata = svgdata;
 
          };
       }
