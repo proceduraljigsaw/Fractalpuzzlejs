@@ -33,44 +33,29 @@
       function update_nrows() { var val = parseInt($("_nrows").value); if (!isNaN(val)) { $("nrows").value = val; } updatenrows(); }
 
 
-      function plotenhance(path, pts, ustart, uend, uinc, scale) {
-         var len = path.getTotalLength();
-         for (let u = ustart; u < uend; u += uinc) {
-            let p = path.getPointAtLength(u * len);
-            p.x = Math.round(p.x / scale);
-            p.y = Math.round(p.y / scale);
-            var pp = pts[pts.length - 1];
-            if (Math.abs(pp.x - p.x) > 1 || Math.abs(pp.y - p.y) > 1) {
-               let nuinc = uinc / 2;
-               plotenhance(path, pts, u - uinc + nuinc, u, nuinc, scale);
-            }
-            pts.push(p);
-         }
-      }
-
       function plotpath(path, scale) {
          var len = path.getTotalLength();
          var ancestor = path.ownerSVGElement;
-         let curvepoints = [];
-         for (let u = 0; u <= 1; u += 0.001) {
+         let cp = [];
+         let uinc = 0.0078125;
+         for (let u = 0; u <= 1; u += uinc) {
             let p = path.getPointAtLength(u * len);
             p.rx = p.x;
             p.ry = p.y;
             p.x = Math.round(p.x / scale);
             p.y = Math.round(p.y / scale);
-            if (curvepoints.length) {
-               var pp = curvepoints[curvepoints.length - 1];
-               if (Math.abs(pp.x - p.x) > 1 || Math.abs(pp.y - p.y) > 1) {
-                  //Lacking raster resolution
-                  let nuinc = 0.001 / 2;
-                  plotenhance(path, curvepoints, u - 0.001 + nuinc, u, nuinc, scale);
-               }
+            if (cp.length && (Math.abs(cp[cp.length - 1].x - p.x) > 1 || Math.abs(cp[cp.length - 1].y - p.y) > 1)) {
+               //Lacking raster resolution
+               u -= uinc;
+               uinc = uinc / 2;
+            } else {
+               cp.push(p);
             }
-            curvepoints.push(p);
+
          }
-         return curvepoints;
+         return cp;
       }
-    
+
       class Tile {
          constructor(x, y) {
             this._x = x;
@@ -911,6 +896,9 @@
             //De-viewboxfy
             pgroup.setAttribute("transform", "matrix(" + vt.a + "," + vt.b + "," + vt.c + "," + vt.d + "," + vt.e + "," + vt.f + ")");
             flatten($("puzzlecontainer"), false, true);
+            //Scale
+            pgroup.setAttribute("transform", "scale(" + parseFloat($("cbsf").value) + ")");
+            flatten($("puzzlecontainer"), false, true);
             //To left corner
             pgroup.setAttribute("transform", "translate(" + (-($("puzzlecontainer").getBBox().x)) + "," + (-($("puzzlecontainer").getBBox().y)) + ")");
             flatten($("puzzlecontainer"), false, true);
@@ -921,8 +909,8 @@
 
             customborder.paths = pgroup.getElementsByTagName("path");
 
-            $("width").innerHTML = customborder.width;
-            $("height").innerHTML = customborder.height;
+            $("width").innerHTML = Math.round(customborder.width);
+            $("height").innerHTML = Math.round(customborder.height);
          }
          jig = new CircleFractalJigsaw(ncols, nrows, minp, maxp, customborder, rad);
          nrows = jig.nrows;
@@ -1054,6 +1042,10 @@
          <input type="file" id="borderfile" accept=".svg">
          <button onclick="loadborder()">Load SVG border</button>
       </td>
+      <td>Custom border scale factor:
+         <input id="cbsf" type="text" value="1" size="4" />
+      </td>
+      <td></td>
       </tr>
       <tr>
          <td><button onclick="generate()">Generate Jigsaw</button></td>
@@ -1127,7 +1119,8 @@
                      interpreted as 6x4mm. So it's better if you just use millimeters for the SVG border.
                      Next update will let you adjust the final jigsaw size, stay tuned.
                   </li>
-                  <li><span style="color: #ff0000;"><strong>This is NOT guaranteed to work. It should work with most SVGs but I haven't tested the whole specification.</strong></span></li>
+                  <li><span style="color: #ff0000;"><strong>This is NOT guaranteed to work. It should work with most
+                           SVGs but I haven't tested the whole specification.</strong></span></li>
                </ul>
             </li>
          </ul>
