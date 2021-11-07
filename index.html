@@ -48,6 +48,10 @@
                //Lacking raster resolution
                u -= uinc;
                uinc = uinc / 2;
+               if(uinc < 0.00006103515625){
+                  uinc = 0.0078125;
+                  cp.push(p);
+               }
             } else {
                cp.push(p);
             }
